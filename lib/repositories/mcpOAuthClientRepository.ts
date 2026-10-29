@@ -83,10 +83,17 @@ export async function cleanupOrphanClients(): Promise<void> {
 
   const staleIds = stale.map((row) => row.client_id);
 
-  const [{ data: tokenRefs }, { data: codeRefs }] = await Promise.all([
+  const [tokenResult, codeResult] = await Promise.all([
     client.from('mcp_tokens').select('oauth_client_id').in('oauth_client_id', staleIds),
     client.from('mcp_oauth_codes').select('client_id').in('client_id', staleIds),
   ]);
+
+  // Without the references every stale client would look orphaned
+  if (tokenResult.error || codeResult.error) {
+    return;
+  }
+  const { data: tokenRefs } = tokenResult;
+  const { data: codeRefs } = codeResult;
 
   const referenced = new Set<string>();
   for (const row of tokenRefs ?? []) {
