@@ -53,6 +53,8 @@ export interface QueryContext {
   execute: QueryExecutor;
   schema: SchemaIntrospector;
   resolveTenantId: () => Promise<string | null>;
+  /** Refuse to touch tenant-scoped tables without a tenant (multi-tenant mode) */
+  requireTenant?: boolean;
 }
 
 type Row = Record<string, unknown>;
@@ -325,6 +327,7 @@ export class PgQueryBuilder<T = any> implements PromiseLike<PostgrestResponse<T>
 
       const tenantId = await this.ctx.resolveTenantId();
       const meta = await this.ctx.schema.table(this.table);
+      this.assertTenant(meta, tenantId);
 
       return this.operation === 'select'
         ? await this.runSelect(meta, tenantId)
@@ -342,6 +345,12 @@ export class PgQueryBuilder<T = any> implements PromiseLike<PostgrestResponse<T>
     const { sql, bindings } = builder.toSQL().toNative();
     const result = await this.ctx.execute(sql, bindings);
     return result.rows;
+  }
+
+  private assertTenant(meta: TableMeta, tenantId: string | null): void {
+    if (this.ctx.requireTenant && !tenantId && meta.hasTenantColumn) {
+      throw new PgClientError('TENANT_REQUIRED', `No tenant resolved for a query on "${meta.name}"`);
+    }
   }
 
   private applyScope(builder: Knex.QueryBuilder, alias: string, meta: TableMeta, tenantId: string | null): void {
@@ -387,6 +396,7 @@ export class PgQueryBuilder<T = any> implements PromiseLike<PostgrestResponse<T>
       meta: await this.ctx.schema.table(embed.relation),
       conditions: embedConditions.get(embed.relation) ?? [],
     })));
+    embeds.forEach((resolved) => this.assertTenant(resolved.meta, tenantId));
 
     const embedQuery = (resolved: ResolvedEmbed): Knex.QueryBuilder => {
       const builder = knex({ [resolved.alias]: resolved.embed.relation });

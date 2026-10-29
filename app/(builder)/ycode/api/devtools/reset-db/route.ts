@@ -3,6 +3,7 @@ import { getKnexClient } from '@/lib/knex-client';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { STORAGE_BUCKET } from '@/lib/asset-constants';
 import { clearAllCache } from '@/lib/services/cacheService';
+import { multiTenantRestriction } from '@/lib/database/tenancy';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -14,6 +15,12 @@ export const revalidate = 0;
  * Authentication enforced by proxy.
  */
 export async function POST() {
+  // Drops every table, which would wipe every tenant's data
+  const restriction = multiTenantRestriction('Database reset');
+  if (restriction) {
+    return NextResponse.json({ error: restriction }, { status: 403 });
+  }
+
   try {
     console.log('[POST /ycode/api/devtools/reset-db] Starting database reset...');
 

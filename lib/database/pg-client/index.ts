@@ -5,6 +5,7 @@
  * - default: the Supabase client (unchanged behaviour)
  * - YCODE_DB_DRIVER=postgres: the Postgres client on DATABASE_URL, with tenant
  *   scoping resolved from `runWithTenantId()` or the request headers
+ * - YCODE_MULTI_TENANT=true (postgres only): queries without a tenant fail
  *
  * SERVER-ONLY: imports the Supabase server module.
  */
@@ -12,7 +13,8 @@
 import knex from 'knex';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { getSupabaseAdmin, getTenantIdFromHeaders, tenantStore } from '@/lib/supabase-server';
+import { getSupabaseAdmin, getTenantIdFromHeaders } from '@/lib/supabase-server';
+import { isMultiTenant } from '@/lib/database/tenancy';
 import { createPgClient, type PgClient } from './client';
 
 export { createPgClient } from './client';
@@ -42,7 +44,8 @@ export function getPgClient(): PgClient {
       connection: process.env.DATABASE_URL,
       pool: { min: 0, max: Number(process.env.DATABASE_POOL_MAX) || 10 },
     }),
-    resolveTenantId: async () => tenantStore.getStore() ?? getTenantIdFromHeaders(),
+    resolveTenantId: getTenantIdFromHeaders,
+    requireTenant: isMultiTenant(),
   });
 
   return globalForPgClient.__pgClient;
@@ -58,6 +61,9 @@ export function getPgClient(): PgClient {
  */
 export async function getDbClient(tenantId?: string): Promise<SupabaseClient | null> {
   if (!isPostgresDriver()) {
+    if (isMultiTenant()) {
+      throw new Error('YCODE_MULTI_TENANT=true requires YCODE_DB_DRIVER=postgres');
+    }
     return getSupabaseAdmin(tenantId);
   }
 

@@ -12,6 +12,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { STORAGE_BUCKET, STORAGE_FOLDERS } from '@/lib/asset-constants';
 import { migrations } from '../migrations-loader';
 import { guardKnexForMigrationReplay } from '@/lib/migration-replay-guard';
+import { multiTenantRestriction } from '@/lib/database/tenancy';
 
 /**
  * Tables in FK-safe order (parents before children).
@@ -735,6 +736,12 @@ export async function restoreAssetFiles(
 
 /** Export the project as portable JSON data. */
 export async function exportProject(): Promise<ProjectExportResult> {
+  // Reads whole tables, which would include every tenant's data
+  const restriction = multiTenantRestriction('Project export');
+  if (restriction) {
+    return { success: false, error: restriction };
+  }
+
   const canConnect = await testKnexConnection();
   if (!canConnect) {
     return {
@@ -841,6 +848,12 @@ export async function importProject(
   data: Record<string, Record<string, unknown>[]>,
   files?: ExportFile[]
 ): Promise<ProjectImportResult> {
+  // Truncates whole tables, which would wipe every tenant's data
+  const restriction = multiTenantRestriction('Project import');
+  if (restriction) {
+    return { success: false, error: restriction };
+  }
+
   const validationError = validateManifest(manifest);
   if (validationError) {
     return { success: false, error: validationError };

@@ -97,6 +97,8 @@ export interface PgClientOptions {
   execute?: QueryExecutor;
   schema?: SchemaIntrospector;
   resolveTenantId?: () => Promise<string | null> | string | null;
+  /** Refuse queries on tenant-scoped tables (and RPCs) without a tenant */
+  requireTenant?: boolean;
 }
 
 export interface PgClient {
@@ -115,7 +117,8 @@ export function createPgClient(options: PgClientOptions): PgClient {
     async (sql, bindings) => (await execute(sql, bindings)).rows,
   );
   const resolveTenantId = async () => (await options.resolveTenantId?.()) ?? null;
-  const context = { knex, execute, schema, resolveTenantId };
+  const requireTenant = options.requireTenant ?? false;
+  const context = { knex, execute, schema, resolveTenantId, requireTenant };
 
   return {
     from(table) {
@@ -130,12 +133,17 @@ export function createPgClient(options: PgClientOptions): PgClient {
           throw new PgClientError('PGRST100', `Invalid function or argument name "${invalid}"`);
         }
 
+        const tenantId = await resolveTenantId();
+        if (requireTenant && !tenantId) {
+          throw new PgClientError('TENANT_REQUIRED', `No tenant resolved for rpc "${fn}"`);
+        }
+
         // Named notation, like PostgREST: fn("p_limit" => $1, ...)
         const { sql, bindings } = knex
           .raw(`select * from ??(${names.map((name) => `"${name}" => ?`).join(', ')})`, [fn, ...names.map((name) => args[name])] as Knex.RawBinding[])
           .toSQL()
           .toNative();
-        const result = await execute(sql, bindings, { tenantId: await resolveTenantId() });
+        const result = await execute(sql, bindings, { tenantId });
 
         const field = result.fields?.length === 1 ? result.fields[0] : null;
         let data: unknown = result.rows;
@@ -152,7 +160,7 @@ export function createPgClient(options: PgClientOptions): PgClient {
     },
 
     withTenant(tenantId) {
-      return createPgClient({ knex, execute, schema, resolveTenantId: () => tenantId });
+      return createPgClient({ knex, execute, schema, requireTenant, resolveTenantId: () => tenantId });
     },
 
     get storage(): never {

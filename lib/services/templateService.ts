@@ -4,6 +4,7 @@ import { STORAGE_BUCKET, STORAGE_FOLDERS } from '@/lib/asset-constants';
 import { migrations } from '../migrations-loader';
 import { guardKnexForMigrationReplay } from '@/lib/migration-replay-guard';
 import { YCODE_EXTERNAL_API_URL } from '@/lib/config';
+import { multiTenantRestriction } from '@/lib/database/tenancy';
 
 /**
  * Tables to truncate when applying a template.
@@ -348,6 +349,12 @@ export async function applyTemplate(
   templateId: string,
   tenantId?: string
 ): Promise<ApplyTemplateResult> {
+  // Truncates whole tables and runs remote SQL, which would affect every tenant
+  const restriction = multiTenantRestriction('Applying a template');
+  if (restriction) {
+    return { success: false, error: restriction };
+  }
+
   // Test database connection first
   const canConnect = await testKnexConnection();
   if (!canConnect) {

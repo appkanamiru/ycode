@@ -129,11 +129,12 @@ export async function testSupabaseConnection(
 /**
  * Get tenant ID from request headers.
  *
- * Base implementation: always returns null (single-tenant, no scoping needed).
+ * Base implementation: only the explicit `runWithTenantId()` context, null
+ * otherwise (single-tenant, no scoping needed).
  * Overridden via path alias in multi-tenant deployments.
  */
 export async function getTenantIdFromHeaders(): Promise<string | null> {
-  return null;
+  return tenantStore.getStore() ?? null;
 }
 
 /**

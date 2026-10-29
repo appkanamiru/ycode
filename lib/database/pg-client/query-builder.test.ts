@@ -199,6 +199,22 @@ test('unsupported syntax is reported as an error, not thrown', async () => {
   assert.equal(statements.length, 0);
 });
 
+test('requireTenant refuses tenant-scoped tables without a tenant', async () => {
+  const statements: string[] = [];
+  const execute: QueryExecutor = async (sql) => {
+    statements.push(sql);
+    return { rows: [] };
+  };
+  const client = createPgClient({ knex: knex({ client: 'pg' }), execute, schema, requireTenant: true, resolveTenantId: () => null });
+
+  const pages = await client.from('pages').select('*');
+  assert.equal(pages.error?.code, 'TENANT_REQUIRED');
+  assert.equal((await client.rpc('anything')).error?.code, 'TENANT_REQUIRED');
+  assert.equal((await client.from('app_settings').select('*')).error, null, 'global tables stay accessible');
+  assert.equal((await client.withTenant(TENANT).from('pages').select('*')).error, null);
+  assert.equal(statements.length, 2);
+});
+
 test('throwOnError() rejects', async () => {
   const { client } = setup(null, [[]]);
   await assert.rejects(async () => client.from('pages').select('*').single().throwOnError(), { code: 'PGRST116' });
