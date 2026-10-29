@@ -1,42 +1,74 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { assignInlinedComponentNames, getInlinedComponentName } from './inlined-components';
+import type { Layer } from '@/types';
+import { getLayoutTemplate } from './blocks';
+import { flattenInlinedComponents } from './inlined-components';
 
-const inlined = (name: string, text: string, id: string) => ({
-  id,
-  name: 'div',
-  _inlinedComponentName: name,
-  children: [{ id: `${id}-text`, name: 'text', content: text }],
-});
+const COMPONENT_KEYS = ['_inlinedComponentName', '_inlinedComponentVariables', 'componentOverrides', 'componentId', '_textFromOverride'];
 
-test('different components with the same name get distinct names', () => {
-  const names = assignInlinedComponentNames({
-    'nav-b': { template: { id: 's2', name: 'section', children: [inlined('Navigation', 'Centered', 'b')] } },
-    'nav-a': { template: { id: 's1', name: 'section', children: [inlined('Navigation', 'Left', 'a')] } },
-    'nav-c': { template: { id: 's3', name: 'section', children: [inlined('Navigation', 'Split', 'c')] } },
+function walk(layer: Layer, visit: (layer: Layer) => void): void {
+  visit(layer);
+  layer.children?.forEach((child) => walk(child, visit));
+}
+
+function texts(layer: Layer): string[] {
+  const found: string[] = [];
+  walk(layer, (node) => {
+    const json = JSON.stringify(node.variables?.text ?? '');
+    for (const match of json.matchAll(/"text":"([^"]+)"/g)) found.push(match[1]);
   });
+  return found;
+}
 
-  assert.equal(names.get('nav-a')!.get('Navigation'), 'Navigation');
-  assert.equal(names.get('nav-b')!.get('Navigation'), 'Navigation 2');
-  assert.equal(names.get('nav-c')!.get('Navigation'), 'Navigation 3');
+test('layouts with inlined components become plain layers', () => {
+  for (const key of ['navigation-001', 'navigation-002', 'faq-001']) {
+    const layout = flattenInlinedComponents(getLayoutTemplate(key)!);
+    walk(layout, (node) => {
+      for (const component of COMPONENT_KEYS) {
+        assert.equal(component in node, false, `${key}: ${component} left on ${node.id}`);
+      }
+    });
+  }
 });
 
-test('identical components keep sharing one name, whatever their template ids', () => {
-  const names = assignInlinedComponentNames({
-    'hero-a': { template: { id: 'x', name: 'section', children: [inlined('Button', 'Buy', 'a1')] } },
-    'hero-b': { template: { id: 'y', name: 'section', children: [inlined('Button', 'Buy', 'b1')] } },
-    faq: { template: { id: 'z', name: 'section', children: [inlined('FAQ', 'Q', 'f1'), inlined('FAQ', 'Q', 'f2')] } },
+test('each FAQ item keeps its own question and answer', () => {
+  const faq = flattenInlinedComponents(getLayoutTemplate('faq-001')!);
+  const content = texts(faq);
+
+  assert.ok(content.includes('What is Ycode?'), content.join(' | '));
+  const questions = content.filter((text) => text.endsWith('?'));
+  assert.ok(questions.length >= 3, `expected the items' own questions: ${questions.join(' | ')}`);
+  assert.equal(new Set(questions).size, questions.length, 'questions are not all the same default');
+
+  // No layer is left bound to the component's variables
+  walk(faq, (node) => {
+    assert.ok(!String((node.variables?.text as { id?: string } | undefined)?.id ?? '').startsWith('cpv-'), node.id);
   });
-
-  assert.equal(names.get('hero-a')!.get('Button'), 'Button');
-  assert.equal(names.get('hero-b')!.get('Button'), 'Button');
-  assert.equal(names.get('faq')!.get('FAQ'), 'FAQ');
 });
 
-test('the built-in navigation layouts no longer collide', () => {
-  assert.equal(getInlinedComponentName('navigation-001', 'Navigation'), 'Navigation');
-  assert.equal(getInlinedComponentName('navigation-002', 'Navigation'), 'Navigation 2');
-  assert.equal(getInlinedComponentName('faq-001', 'FAQ'), 'FAQ');
-  assert.equal(getInlinedComponentName('unknown-layout', 'Anything'), 'Anything');
+test('the flattened instance looks like the rendered one: instance id, root content', () => {
+  const instance = {
+    id: 'instance',
+    name: 'div',
+    customName: 'Item',
+    _inlinedComponentName: 'Card',
+    _inlinedComponentVariables: [{ id: 'cpv-title', name: 'Title', default_value: { type: 'dynamic_text', data: { content: 'Default' } } }],
+    componentOverrides: { text: { 'cpv-title': { type: 'dynamic_text', data: { content: 'Mine' } } } },
+    children: [{
+      id: 'root',
+      name: 'div',
+      classes: 'card',
+      interactions: [{ id: 'int', trigger: 'hover', tweens: [{ id: 'tw', layer_id: 'root' }] }],
+      children: [{ id: 'title', name: 'text', variables: { text: { id: 'cpv-title', type: 'dynamic_text', data: { content: 'Default' } } } }],
+    }],
+  } as unknown as Layer;
+
+  const page = flattenInlinedComponents({ id: 'section', name: 'section', children: [instance] } as Layer);
+  const card = page.children![0] as Layer & { interactions: Array<{ tweens: Array<{ layer_id: string }> }> };
+
+  assert.equal(card.id, 'instance');
+  assert.equal(card.classes, 'card');
+  assert.equal(card.interactions[0].tweens[0].layer_id, 'instance');
+  assert.deepEqual(card.children![0].variables!.text, { type: 'dynamic_text', data: { content: 'Mine' } });
 });

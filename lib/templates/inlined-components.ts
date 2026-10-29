@@ -1,73 +1,90 @@
 /**
  * Inlined Components in Layouts
  *
- * A layout can carry a component inline (`_inlinedComponentName` plus its
- * layers). Inserting the layout reuses the site's component with that name,
- * or creates it — so a navigation stays one shared component across pages.
- *
- * Different layouts may inline different components under the same name
- * (e.g. two navigation designs both called "Navigation"). Matching by name
- * alone would then insert the first design for the second layout, so names
- * are made unique per distinct component: later ones (by layout key) become
- * "Navigation 2", "Navigation 3"... Layouts whose inlined components are
- * identical keep sharing one name.
+ * A few layouts carry a component inline: a layer marked with
+ * `_inlinedComponentName` whose first child is the component's root, plus the
+ * component's variables and this instance's overrides. Layouts are inserted as
+ * plain layers instead (users can turn any part into a component themselves),
+ * so each inlined instance is flattened the way it would render: the instance
+ * layer merged with the component root, with the instance's values written
+ * into the layers.
  */
 
-import { layoutTemplates } from './layouts';
+import { applyComponentOverrides } from '@/lib/resolve-components';
+import type { ComponentVariable, Layer } from '@/types';
 
-type TemplateNode = Record<string, unknown> & { children?: TemplateNode[] };
+type InlinedLayer = Layer & {
+  _inlinedComponentName?: string;
+  _inlinedComponentVariables?: ComponentVariable[];
+};
 
-/** Component content without ids, which are placeholders in templates */
-function fingerprint(node: TemplateNode): string {
-  return JSON.stringify(node.children ?? [], (key, value) => (key === 'id' ? undefined : value));
-}
+/** Render-time markers that applyComponentOverrides leaves on layers */
+const OVERRIDE_MARKERS = ['_textFromOverride', '_imageFromOverride'];
+const MEDIA_VARIABLES = ['image', 'icon', 'video', 'audio'] as const;
 
-function collectInlined(node: TemplateNode, found: Array<{ name: string; fingerprint: string }>): void {
-  if (typeof node._inlinedComponentName === 'string') {
-    found.push({ name: node._inlinedComponentName, fingerprint: fingerprint(node) });
-    return;
-  }
-  node.children?.forEach((child) => collectInlined(child, found));
-}
+/** Drop override markers and links to the (now gone) component's variables */
+function cleanLayer(layer: Layer, variableIds: Set<string>): Layer {
+  const cleaned = { ...layer } as Layer & Record<string, unknown>;
+  for (const marker of OVERRIDE_MARKERS) delete cleaned[marker];
 
-/**
- * Map of `layoutKey` -> (inlined name -> component name to use on the site).
- */
-export function assignInlinedComponentNames(
-  templates: Record<string, { template: unknown }>,
-): Map<string, Map<string, string>> {
-  // name -> distinct fingerprints, in layout key order
-  const variants = new Map<string, string[]>();
-  const perLayout = new Map<string, Array<{ name: string; fingerprint: string }>>();
-
-  for (const layoutKey of Object.keys(templates).sort()) {
-    const found: Array<{ name: string; fingerprint: string }> = [];
-    collectInlined(templates[layoutKey].template as TemplateNode, found);
-    perLayout.set(layoutKey, found);
-
-    for (const { name, fingerprint: print } of found) {
-      const known = variants.get(name) ?? [];
-      if (!known.includes(print)) known.push(print);
-      variants.set(name, known);
+  if (cleaned.variables) {
+    const variables = { ...cleaned.variables } as Record<string, any>;
+    for (const key of MEDIA_VARIABLES) {
+      const src = variables[key]?.src;
+      if (src && typeof src === 'object' && variableIds.has(src.id)) {
+        const { id: _linkedVariable, ...value } = src;
+        variables[key] = { ...variables[key], src: value };
+      }
     }
+    cleaned.variables = variables as Layer['variables'];
   }
 
-  const names = new Map<string, Map<string, string>>();
-  for (const [layoutKey, found] of perLayout) {
-    const layoutNames = new Map<string, string>();
-    for (const { name, fingerprint: print } of found) {
-      const index = variants.get(name)!.indexOf(print);
-      layoutNames.set(name, index === 0 ? name : `${name} ${index + 1}`);
-    }
-    names.set(layoutKey, layoutNames);
+  if (cleaned.children) {
+    cleaned.children = cleaned.children.map((child) => cleanLayer(child, variableIds));
   }
-  return names;
+  return cleaned;
 }
 
-let libraryNames: Map<string, Map<string, string>> | null = null;
+function flattenInstance(layer: InlinedLayer): Layer {
+  const {
+    _inlinedComponentName: _name,
+    _inlinedComponentVariables: variables = [],
+    componentOverrides: overrides,
+    componentId: _componentId,
+    componentVariantId: _variantId,
+    ...instance
+  } = layer;
 
-/** Site component name for a component inlined in one of the built-in layouts */
-export function getInlinedComponentName(layoutKey: string, inlinedName: string): string {
-  libraryNames ??= assignInlinedComponentNames(layoutTemplates);
-  return libraryNames.get(layoutKey)?.get(inlinedName) ?? inlinedName;
+  const root = layer.children?.[0];
+  if (!root) return instance as Layer;
+
+  const [resolvedRoot] = applyComponentOverrides([{ ...root, children: undefined }], overrides, variables);
+  const children = applyComponentOverrides(root.children ?? [], overrides, variables);
+
+  // The rendered instance keeps the instance layer's id; the root's own
+  // interactions targeted the root, so they now target the instance layer
+  const interactions = resolvedRoot.interactions?.map((interaction) => ({
+    ...interaction,
+    tweens: interaction.tweens.map((tween) => (
+      tween.layer_id === root.id ? { ...tween, layer_id: layer.id } : tween
+    )),
+  }));
+
+  const variableIds = new Set(variables.map((variable) => variable.id));
+  return cleanLayer({
+    ...instance,
+    ...resolvedRoot,
+    id: layer.id,
+    ...(interactions ? { interactions } : {}),
+    children: children.map(flattenInlinedComponents),
+  } as Layer, variableIds);
+}
+
+/** Turn every inlined component instance in a layout's layer tree into plain layers */
+export function flattenInlinedComponents(layer: Layer): Layer {
+  if ((layer as InlinedLayer)._inlinedComponentName) {
+    return flattenInstance(layer as InlinedLayer);
+  }
+  if (!layer.children?.length) return layer;
+  return { ...layer, children: layer.children.map(flattenInlinedComponents) };
 }
