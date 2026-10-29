@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import type { PageLayers, Layer } from '../../types';
 import { generatePageLayersHash } from '../hash-utils';
 import { deleteTranslationsInBulk, markTranslationsIncomplete } from '@/lib/repositories/translationRepository';
@@ -12,7 +12,7 @@ export async function getLayersByPageId(
   pageId: string,
   isPublished?: boolean
 ): Promise<PageLayers | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -48,7 +48,7 @@ export async function getLayersByPageId(
  * Get draft layers for a page
  */
 export async function getDraftLayers(pageId: string, tenantId?: string): Promise<PageLayers | null> {
-  const client = await getSupabaseAdmin(tenantId);
+  const client = await getDbClient(tenantId);
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -78,7 +78,7 @@ export async function getDraftLayers(pageId: string, tenantId?: string): Promise
  * Get published layers for a page
  */
 export async function getPublishedLayers(pageId: string, tenantId?: string): Promise<PageLayers | null> {
-  const client = await getSupabaseAdmin(tenantId);
+  const client = await getDbClient(tenantId);
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -121,7 +121,7 @@ export async function upsertDraftLayers(
   additionalData?: Record<string, any>,
   existingDraft?: PageLayers | null,
 ): Promise<PageLayers> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -221,7 +221,7 @@ export async function upsertDraftLayers(
  * Used for loading all drafts at once in the editor
  */
 export async function getAllDraftLayers(): Promise<PageLayers[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -246,7 +246,7 @@ export async function getAllDraftLayers(): Promise<PageLayers[]> {
  * Used for batch publishing optimization
  */
 export async function getDraftLayersForPages(pageIds: string[]): Promise<PageLayers[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -276,7 +276,7 @@ export async function getDraftLayersForPages(pageIds: string[]): Promise<PageLay
  * Used for batch publishing optimization
  */
 export async function getPublishedLayersByIds(ids: string[]): Promise<PageLayers[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -305,7 +305,7 @@ export async function getPublishedLayersByIds(ids: string[]): Promise<PageLayers
  * Used to find the published version of draft layers
  */
 export async function getPublishedLayersById(id: string): Promise<PageLayers | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -338,7 +338,7 @@ export async function getPublishedLayersById(id: string): Promise<PageLayers | n
  * Draft layers remain unchanged
  */
 export async function publishPageLayers(draftPageId: string, publishedPageId: string): Promise<PageLayers> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -423,7 +423,7 @@ export async function batchPublishPageLayers(
     return { count: 0, changedPageIds: [] };
   }
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -545,7 +545,7 @@ export async function batchPublishPageLayers(
  * Get all layers entries for a page (for history)
  */
 export async function getPageLayers(pageId: string): Promise<PageLayers[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -583,7 +583,7 @@ export interface AffectedPagesByResource {
  * @returns Additional component IDs that transitively reference the changed resources
  */
 async function expandThroughComponents(
-  client: NonNullable<Awaited<ReturnType<typeof getSupabaseAdmin>>>,
+  client: NonNullable<Awaited<ReturnType<typeof getDbClient>>>,
   componentIds: string[],
   styleIds: string[],
 ): Promise<string[]> {
@@ -655,7 +655,7 @@ async function expandThroughComponents(
  * through nested components) so callers can flag the pages using them.
  */
 async function findComponentsEmbeddingCollections(
-  client: NonNullable<Awaited<ReturnType<typeof getSupabaseAdmin>>>,
+  client: NonNullable<Awaited<ReturnType<typeof getDbClient>>>,
   collectionIds: string[],
 ): Promise<string[]> {
   if (collectionIds.length === 0) return [];
@@ -691,7 +691,7 @@ async function findComponentsEmbeddingCollections(
  * `field_id`/`relationships` path, never the referenced collection's ID.
  */
 async function findReferenceFieldIds(
-  client: NonNullable<Awaited<ReturnType<typeof getSupabaseAdmin>>>,
+  client: NonNullable<Awaited<ReturnType<typeof getDbClient>>>,
   collectionIds: string[],
 ): Promise<string[]> {
   // `reference_collection_id` is a uuid column: one virtual id (e.g. the
@@ -740,7 +740,7 @@ export async function findAffectedPages(
 
   if (!hasComponents && !hasStyles && !hasCollections) return result;
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) throw new Error('Supabase client not available for dependency scan');
 
   // Expand component/style IDs through nested component references so that
@@ -853,7 +853,7 @@ export async function findCollectionsEmbeddingComponents(
 ): Promise<string[]> {
   if (componentIds.length === 0) return [];
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) return [];
 
   // Only rich-text fields can contain embedded `richTextComponent` nodes, so
@@ -952,7 +952,7 @@ export async function getEmbeddedComponentIdsForCollections(
   const result = new Map<string, Set<string>>();
   if (collectionIds.length === 0) return result;
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) return result;
 
   const { data: richTextFields } = await client

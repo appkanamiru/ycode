@@ -1,4 +1,5 @@
-import { getSupabaseAdmin, getTenantIdFromHeaders } from '@/lib/supabase-server';
+import { getTenantIdFromHeaders } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { getKnexClient } from '@/lib/knex-client';
 import { SUPABASE_IN_FILTER_CHUNK_SIZE, SUPABASE_QUERY_LIMIT, SUPABASE_WRITE_BATCH_SIZE } from '@/lib/supabase-constants';
 import type { CollectionField, CollectionItem, CollectionItemWithValues } from '@/types';
@@ -41,7 +42,7 @@ export async function getTopItemsPerCollection(
   is_published: boolean = false,
   limit: number = 10
 ): Promise<CollectionItem[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -119,7 +120,7 @@ export async function getItemsByCollectionId(
   is_published: boolean = false,
   filters?: QueryFilters
 ): Promise<{ items: CollectionItem[], total: number }> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -233,7 +234,7 @@ export async function fetchPublishedHashMap(
   const publishedHashMap = new Map<string, string | null>();
   if (itemIds.length === 0) return publishedHashMap;
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) throw new Error('Supabase client not configured');
 
   let publishedRows: Array<{ id: string; content_hash: string | null }> | null = null;
@@ -357,7 +358,7 @@ export async function getAllItemsRaw(
     }
     return await query;
   } catch {
-    const client = await getSupabaseAdmin(tenantId);
+    const client = await getDbClient(tenantId);
     if (!client) {
       throw new Error('Supabase client not configured');
     }
@@ -420,7 +421,7 @@ export async function getAllItemsByCollectionId(
     return await query;
   } catch {
     // Fallback: paginated PostgREST reads
-    const client = await getSupabaseAdmin();
+    const client = await getDbClient();
     if (!client) {
       throw new Error('Supabase client not configured');
     }
@@ -475,7 +476,7 @@ export async function getAllItemsByCollectionId(
  * @param isPublished - Get draft (false) or published (true) version. Defaults to false (draft).
  */
 export async function getItemById(id: string, isPublished: boolean = false, tenantId?: string): Promise<CollectionItem | null> {
-  const client = await getSupabaseAdmin(tenantId);
+  const client = await getDbClient(tenantId);
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -523,7 +524,7 @@ export async function getItemsByIds(ids: string[], isPublished: boolean = false,
     return await query;
   } catch {
     // Fallback: chunked PostgREST reads
-    const client = await getSupabaseAdmin(tenantId);
+    const client = await getDbClient(tenantId);
     if (!client) {
       throw new Error('Supabase client not configured');
     }
@@ -556,7 +557,7 @@ export async function getItemsByIds(ids: string[], isPublished: boolean = false,
  * @param is_published - Get draft (false) or published (true) values. Defaults to false (draft).
  */
 export async function getItemWithValues(id: string, is_published: boolean = false, tenantId?: string): Promise<CollectionItemWithValues | null> {
-  const client = await getSupabaseAdmin(tenantId);
+  const client = await getDbClient(tenantId);
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -612,7 +613,7 @@ export async function getItemIdsByFieldValue(
   targetValue: string,
   isPublished: boolean = false
 ): Promise<string[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -888,7 +889,7 @@ export async function getMaxManualOrder(
   collectionId: string,
   isPublished: boolean = false
 ): Promise<number> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -918,7 +919,7 @@ export async function getMaxIdValue(
   collection_id: string,
   is_published: boolean = false
 ): Promise<number> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -963,7 +964,7 @@ export async function getMaxIdValue(
 export async function createItemsBulk(
   items: Array<CreateCollectionItemData & { id?: string }>
 ): Promise<CollectionItem[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -999,7 +1000,7 @@ export async function createItemsBulk(
  * Create a new item
  */
 export async function createItem(itemData: CreateCollectionItemData): Promise<CollectionItem> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -1040,7 +1041,7 @@ export async function updateItem(
   itemData: UpdateCollectionItemData,
   isPublished: boolean = false
 ): Promise<CollectionItem> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -1074,7 +1075,7 @@ export async function updateItem(
  * @param isPublished - Which version to delete: draft (false) or published (true). Defaults to false (draft).
  */
 export async function deleteItem(id: string, isPublished: boolean = false): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -1119,7 +1120,7 @@ export async function deleteItem(id: string, isPublished: boolean = false): Prom
  * @param isPublished - Whether to duplicate draft (false) or published (true) version. Defaults to false (draft).
  */
 export async function duplicateItem(itemId: string, isPublished: boolean = false): Promise<CollectionItemWithValues> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -1259,7 +1260,7 @@ export async function searchItems(
   is_published: boolean = false,
   query: string
 ): Promise<{ items: CollectionItemWithValues[], total: number }> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -1306,7 +1307,7 @@ export async function searchItems(
  * @param id - Item UUID
  */
 export async function publishItem(id: string): Promise<CollectionItem> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -1352,7 +1353,7 @@ async function fetchCollectionItemsForPublish(
   collectionIds: string[],
   isPublished: boolean
 ): Promise<Array<{ id: string; collection_id: string; manual_order: number }>> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Supabase client not configured');
   }
@@ -1389,7 +1390,7 @@ async function fetchCollectionItemsForPublish(
 }
 
 async function getPublishableItemRefs(): Promise<PublishableItemRef[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -1524,7 +1525,7 @@ async function getItemIdsWithValueChanges(itemIds: string[]): Promise<string[]> 
  * Also sets is_publishable = false on the draft row.
  */
 export async function unpublishSingleItem(itemId: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) throw new Error('Supabase client not configured');
 
   // Delete published row (CASCADE deletes published values)
@@ -1548,7 +1549,7 @@ export async function unpublishSingleItem(itemId: string): Promise<void> {
  * @returns true if a published version was removed (caller should clear cache)
  */
 export async function stageSingleItem(itemId: string): Promise<boolean> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) throw new Error('Supabase client not configured');
 
   // Check if a published version exists
@@ -1585,7 +1586,7 @@ export async function stageSingleItem(itemId: string): Promise<boolean> {
  * and copies draft values to published. Sets is_publishable = true.
  */
 export async function publishSingleItem(itemId: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) throw new Error('Supabase client not configured');
 
   // Get draft item
