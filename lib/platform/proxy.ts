@@ -85,7 +85,10 @@ export async function resolvePlatformRequest(
         : { response: NextResponse.json({ error: 'Not authenticated' }, { status: 401 }), tenantId: null };
     }
     // Account-level endpoints (platform, profile) work without an active site
-    const accountLevel = pathname.startsWith('/ycode/api/platform/') || pathname.startsWith('/ycode/api/profile');
+    const accountLevel = pathname.startsWith('/ycode/api/platform/')
+      || pathname.startsWith('/ycode/api/profile')
+      // The MCP consent names its site explicitly
+      || pathname === '/ycode/api/oauth/authorize';
     if (multiTenant && !access.tenantId && !accountLevel) {
       return { response: NextResponse.json({ error: 'No active site' }, { status: 403 }), tenantId: null };
     }

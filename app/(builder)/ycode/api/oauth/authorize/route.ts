@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-auth';
 import { isRedirectUriRegistered, resolveOAuthClient } from '@/lib/oauth/resolve-client';
 import { createCode } from '@/lib/repositories/mcpOAuthCodeRepository';
+import { isMultiTenant } from '@/lib/database/tenancy';
+import { getSiteMembership } from '@/lib/platform/sites';
+import { runInTenantContext } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -25,6 +28,7 @@ interface AuthorizeBody {
   state?: unknown;
   scope?: unknown;
   decision?: unknown; // 'approve' | 'deny'
+  site_id?: unknown; // multi-tenant: the site the client gets access to
 }
 
 function redirectWithError(
@@ -110,15 +114,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ redirect_to: url });
   }
 
+  // Multi-tenant: the code (and the tokens issued for it) belong to the site
+  // the user picked, which they must be a member of
+  let siteId: string | null = null;
+  if (isMultiTenant()) {
+    siteId = typeof body.site_id === 'string' ? body.site_id : null;
+    if (!siteId || !(await getSiteMembership(auth.user.id, siteId))) {
+      return NextResponse.json(
+        { error: 'invalid_request', error_description: 'Choose one of your sites' },
+        { status: 400 },
+      );
+    }
+  }
+
   try {
-    const code = await createCode({
+    const code = await runInTenantContext(siteId, () => createCode({
       client_id: clientId,
       redirect_uri: redirectUri,
       code_challenge: codeChallenge,
       code_challenge_method: codeChallengeMethod,
       scope,
       user_id: auth.user.id,
-    });
+    }));
 
     const url = new URL(redirectUri);
     url.searchParams.set('code', code);

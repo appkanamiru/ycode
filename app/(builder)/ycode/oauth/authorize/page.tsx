@@ -2,7 +2,11 @@ import { redirect } from 'next/navigation';
 import { getAuthUser } from '@/lib/supabase-auth';
 import { isRedirectUriRegistered, resolveOAuthClient } from '@/lib/oauth/resolve-client';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
-import ConsentForm from './ConsentForm';
+import { headers } from 'next/headers';
+import { isMultiTenant } from '@/lib/database/tenancy';
+import { listSites } from '@/lib/platform/sites';
+import { resolveBuilderAccess } from '@/lib/platform/tenants';
+import ConsentForm, { type ConsentSite } from './ConsentForm';
 
 /**
  * OAuth Consent Page
@@ -142,8 +146,29 @@ export default async function AuthorizePage({
     console.error('[oauth/authorize page] getSettingByKey(site_name) failed:', error);
   }
 
+  // Multi-tenant: the user picks which of their sites the client gets access
+  // to, starting from the one active in the editor
+  let sites: ConsentSite[] | null = null;
+  let defaultSiteId: string | null = null;
+  if (isMultiTenant()) {
+    const access = await resolveBuilderAccess(await headers());
+    const memberships = access ? await listSites(access.user.id, access.tenantId) : [];
+    if (memberships.length === 0) {
+      return (
+        <ErrorPanel
+          title="No sites yet"
+          message="Create a site first, then connect this application to it."
+        />
+      );
+    }
+    sites = memberships.map((site) => ({ id: site.id, name: site.name, host: site.url ? new URL(site.url).host : null }));
+    defaultSiteId = memberships.find((site) => site.active)?.id ?? memberships[0].id;
+  }
+
   return (
     <ConsentForm
+      sites={sites}
+      defaultSiteId={defaultSiteId}
       clientName={client.client_name}
       siteName={siteName}
       userEmail={auth.user.email || ''}

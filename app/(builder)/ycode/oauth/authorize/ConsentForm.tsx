@@ -4,7 +4,16 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
+export interface ConsentSite {
+  id: string;
+  name: string;
+  host: string | null;
+}
+
 interface ConsentFormProps {
+  /** Multi-tenant: the user's sites to choose from (null on a single-site install) */
+  sites: ConsentSite[] | null;
+  defaultSiteId: string | null;
   clientName: string;
   siteName: string | null;
   userEmail: string;
@@ -20,6 +29,8 @@ export default function ConsentForm(props: ConsentFormProps) {
   const [submitting, setSubmitting] = useState<'approve' | 'deny' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [siteHost, setSiteHost] = useState('');
+  const [siteId, setSiteId] = useState(props.defaultSiteId);
+  const chosenSite = props.sites?.find((site) => site.id === siteId) ?? null;
 
   useEffect(() => {
     document.documentElement.classList.add('dark');
@@ -45,6 +56,7 @@ export default function ConsentForm(props: ConsentFormProps) {
           code_challenge_method: props.codeChallengeMethod,
           scope: props.scope,
           state: props.state,
+          site_id: siteId,
         }),
       });
 
@@ -74,7 +86,8 @@ export default function ConsentForm(props: ConsentFormProps) {
     // keep raw value on parse failure
   }
 
-  const siteLabel = props.siteName || siteHost || 'this Ycode project';
+  const siteLabel = chosenSite?.name || props.siteName || siteHost || 'this Ycode project';
+  const siteLabelHost = chosenSite ? chosenSite.host : props.siteName ? siteHost : null;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-neutral-950 p-6">
@@ -91,8 +104,8 @@ export default function ConsentForm(props: ConsentFormProps) {
           <p>
             <span className="font-medium text-white">{props.clientName}</span> is requesting
             access to <span className="font-medium text-white">{siteLabel}</span>
-            {props.siteName && siteHost ? (
-              <> (<span className="font-mono text-white/70">{siteHost}</span>)</>
+            {siteLabelHost ? (
+              <> (<span className="font-mono text-white/70">{siteLabelHost}</span>)</>
             ) : null}
             {' '}through the Model Context Protocol.
           </p>
@@ -101,6 +114,24 @@ export default function ConsentForm(props: ConsentFormProps) {
             collections, assets, and other project data on your behalf.
           </p>
         </div>
+
+        {props.sites && props.sites.length > 1 && (
+          <label className="flex flex-col gap-2 text-sm text-white/80">
+            Site
+            <select
+              value={siteId ?? ''}
+              onChange={(event) => setSiteId(event.target.value)}
+              disabled={submitting !== null}
+              className="rounded border border-white/10 bg-neutral-950 px-3 py-2 text-sm text-white"
+            >
+              {props.sites.map((site) => (
+                <option key={site.id} value={site.id}>
+                  {site.host ? `${site.name} (${site.host})` : site.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <div className="text-xs text-white/50 bg-white/5 px-3 py-2 rounded">
           Redirecting to <span className="text-white/80 font-mono">{hostname}</span>
