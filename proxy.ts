@@ -28,6 +28,7 @@ const PUBLIC_API_EXACT = [
   '/ycode/api/revalidate', // Cache revalidation — has own secret token auth
   '/ycode/api/oauth/register', // RFC 7591 Dynamic Client Registration — anonymous
   '/ycode/api/oauth/token',    // OAuth token exchange — auth is via PKCE/refresh
+  '/ycode/api/realtime/publish', // Realtime actions — auth is via the signed connection token
 ];
 
 /**

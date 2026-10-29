@@ -8,7 +8,8 @@
 
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getSupabaseAdmin, getTenantIdFromHeaders } from '@/lib/supabase-server';
+import { getRealtimeHub } from '@/lib/realtime/hub';
 import { isPlatformAuth } from '@/lib/platform/config';
 import type { Component, Layer, Page } from '@/types';
 
@@ -62,9 +63,15 @@ async function broadcast(
   event: string,
   payload: Record<string, unknown>,
 ): Promise<void> {
-  // Live updates run on Supabase Realtime, which plain Postgres doesn't have;
-  // open editors pick up the changes when they reload
-  if (isPlatformAuth()) return;
+  // Plain Postgres: the platform realtime hub, scoped to the tenant
+  if (isPlatformAuth()) {
+    try {
+      await getRealtimeHub().publishFromServer(await getTenantIdFromHeaders(), channelName, event, payload);
+    } catch (error) {
+      console.error(`[MCP-BROADCAST] Failed to broadcast ${event}:`, error);
+    }
+    return;
+  }
 
   try {
     const channel = await getOrCreateChannel(channelName);

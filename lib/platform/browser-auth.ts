@@ -16,6 +16,19 @@ export interface PlatformUserState {
   role: UserRole | null;
 }
 
+let availability: Promise<boolean> | null = null;
+
+/** Whether the server uses platform auth (plain Postgres); checked once per page */
+export function isPlatformAuthAvailable(): Promise<boolean> {
+  availability ??= fetch('/ycode/api/platform/me', { cache: 'no-store' })
+    .then((response) => response.status !== 404)
+    .catch(() => {
+      availability = null;
+      return false;
+    });
+  return availability;
+}
+
 export async function fetchPlatformUser(): Promise<PlatformUserState> {
   const response = await fetch('/ycode/api/platform/me', { cache: 'no-store' });
   if (response.status === 404) return { available: false, user: null, role: null };
