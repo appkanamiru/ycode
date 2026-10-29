@@ -12,8 +12,9 @@ import type { SupabaseConfig } from '@/types';
 import { isPlatformAuth } from '@/lib/platform/config';
 import { resolveBuilderAccess } from '@/lib/platform/tenants';
 import { toAppUser } from '@/lib/platform/user';
+import { getPlatformAuth } from '@/lib/platform/auth';
 
-interface AuthResult {
+export interface AuthResult {
   user: User;
   client: SupabaseClient;
 }
@@ -76,4 +77,36 @@ async function getPlatformAuthUser(): Promise<AuthResult | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Update the signed-in user's display name and/or avatar, in Supabase Auth
+ * or on the platform (plain Postgres). Returns the updated user.
+ */
+export async function updateUserProfile(
+  auth: AuthResult,
+  profile: { displayName?: string; avatarUrl?: string },
+): Promise<User> {
+  if (isPlatformAuth()) {
+    const requestHeaders = await headers();
+    await getPlatformAuth().api.updateUser({
+      headers: requestHeaders,
+      body: {
+        ...(profile.displayName !== undefined ? { name: profile.displayName } : {}),
+        ...(profile.avatarUrl !== undefined ? { image: profile.avatarUrl } : {}),
+      },
+    });
+    const access = await resolveBuilderAccess(requestHeaders);
+    if (!access) throw new Error('Not authenticated');
+    return toAppUser(access);
+  }
+
+  const { data, error } = await auth.client.auth.updateUser({
+    data: {
+      ...(profile.displayName !== undefined ? { display_name: profile.displayName, full_name: profile.displayName } : {}),
+      ...(profile.avatarUrl !== undefined ? { avatar_url: profile.avatarUrl } : {}),
+    },
+  });
+  if (error) throw error;
+  return data.user;
 }

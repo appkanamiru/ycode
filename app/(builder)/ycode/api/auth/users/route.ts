@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { noCache } from '@/lib/api-response';
+import { isPlatformAuth } from '@/lib/platform/config';
+import { handleTeamList, handleTeamRemove, handleTeamRoleChange } from '@/lib/platform/team';
 import { getCallerInfo, requireManageMembers } from '@/lib/roles-server';
 import { resolveRole, ASSIGNABLE_ROLES } from '@/lib/roles';
 
@@ -10,6 +12,8 @@ import { resolveRole, ASSIGNABLE_ROLES } from '@/lib/roles';
  * List all users with their status (active or pending invite) and roles.
  */
 export async function GET(request: NextRequest) {
+  if (isPlatformAuth()) return handleTeamList();
+
   try {
     const client = await getSupabaseAdmin();
     if (!client) {
@@ -92,6 +96,8 @@ export async function GET(request: NextRequest) {
  * Change a user's role. Requires owner or admin.
  */
 export async function PATCH(request: NextRequest) {
+  if (isPlatformAuth()) return handleTeamRoleChange(request);
+
   try {
     const result = await requireManageMembers();
     if ('status' in result) return result;
@@ -145,6 +151,8 @@ export async function PATCH(request: NextRequest) {
  * Delete a user or cancel a pending invite. Requires owner or admin.
  */
 export async function DELETE(request: NextRequest) {
+  if (isPlatformAuth()) return handleTeamRemove(request);
+
   try {
     const result = await requireManageMembers();
     if ('status' in result) return result;

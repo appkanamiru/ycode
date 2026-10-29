@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { noCache } from '@/lib/api-response';
+import { isPlatformAuth } from '@/lib/platform/config';
 import { getAuthUser } from '@/lib/supabase-auth';
 
 /**
@@ -8,6 +9,10 @@ import { getAuthUser } from '@/lib/supabase-auth';
  * Update user's password (requires current password)
  */
 export async function PUT(request: NextRequest) {
+  if (isPlatformAuth()) {
+    return noCache({ error: 'Not available with passwordless sign in' }, 400);
+  }
+
   try {
     const body = await request.json();
     const { currentPassword, newPassword } = body;

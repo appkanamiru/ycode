@@ -24,9 +24,9 @@ import { PostgresDialect } from 'kysely';
 import { getKnexClient } from '@/lib/knex-client';
 import { provisionTenant } from '@/lib/database/tenant-provisioning';
 import { isMultiTenant } from '@/lib/database/tenancy';
-import { PLATFORM_AUTH_BASE_PATH, PLATFORM_SCHEMA } from './config';
+import { getInvitationUrl, PLATFORM_AUTH_BASE_PATH, PLATFORM_SCHEMA } from './config';
 import { getPlatformPool } from './db';
-import { sendSignInCode } from './mailer';
+import { sendSignInCode, sendSiteInvitation } from './mailer';
 import { countOwnedSites, DEFAULT_SITE_LIMIT, validateSiteSlug } from './sites';
 
 const DOMAINS_TABLE_SQL = `
@@ -127,6 +127,10 @@ export function createAuthOptions() {
       organization({
         roles: { owner: ownerAc, admin: adminAc, designer: memberAc, editor: memberAc },
         creatorRole: 'owner',
+        // Accepting requires signing in with the invited email, which proves control of it
+        requireEmailVerificationOnInvitation: true,
+        sendInvitationEmail: async ({ id, email, organization: site, inviter }) =>
+          sendSiteInvitation(email, site.name, inviter.user.name || inviter.user.email, getInvitationUrl(id)),
         // true when the user already owns as many sites as their account allows
         organizationLimit: async (user) =>
           await countOwnedSites(user.id) >= (Number(user.siteLimit) || DEFAULT_SITE_LIMIT),

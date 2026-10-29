@@ -84,8 +84,9 @@ export async function resolvePlatformRequest(
         ? { response: NextResponse.redirect(new URL('/ycode', request.url)), tenantId: null }
         : { response: NextResponse.json({ error: 'Not authenticated' }, { status: 401 }), tenantId: null };
     }
-    // Platform endpoints (account, creating a site) work before a site is active
-    if (multiTenant && !access.tenantId && !pathname.startsWith('/ycode/api/platform/')) {
+    // Account-level endpoints (platform, profile) work without an active site
+    const accountLevel = pathname.startsWith('/ycode/api/platform/') || pathname.startsWith('/ycode/api/profile');
+    if (multiTenant && !access.tenantId && !accountLevel) {
       return { response: NextResponse.json({ error: 'No active site' }, { status: 403 }), tenantId: null };
     }
     return { tenantId: access.tenantId };

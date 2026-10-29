@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { noCache } from '@/lib/api-response';
+import { isPlatformAuth } from '@/lib/platform/config';
 import { requireManageMembers } from '@/lib/roles-server';
 import { ALL_ROLES } from '@/lib/roles';
 
@@ -13,6 +14,9 @@ export const dynamic = 'force-dynamic';
  * Requires the caller to be owner or admin.
  */
 export async function POST(request: NextRequest) {
+  // Platform: a single-tenant install's only account owns it; site roles are memberships
+  if (isPlatformAuth()) return noCache({ data: { success: true } });
+
   try {
     const result = await requireManageMembers();
     if ('status' in result) return result;

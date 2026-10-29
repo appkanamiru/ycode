@@ -16,7 +16,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { platformSendSignInCode, platformSignInWithCode } from '@/lib/platform/browser-auth';
 import { useAuthStore } from '@/stores/useAuthStore';
 
-export default function PlatformSignIn() {
+export default function PlatformSignIn({ hint }: { hint?: string }) {
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [codeSent, setCodeSent] = useState(false);
@@ -52,6 +52,7 @@ export default function PlatformSignIn() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-neutral-950 py-10">
       <div className="w-full max-w-sm animate-in fade-in slide-in-from-bottom-1 duration-700" style={{ animationFillMode: 'both' }}>
+        {hint && <p className="mb-6 text-sm text-white/70">{hint}</p>}
         <form onSubmit={codeSent ? signIn : sendCode} className="flex flex-col gap-6">
           {error && (
             <Alert variant="destructive">

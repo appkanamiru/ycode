@@ -4,11 +4,13 @@
  * Accept Invite Page
  *
  * Handles user invitation flow - allows invited users to set their password
- * and complete their account setup.
+ * and complete their account setup. Platform invitations (plain Postgres)
+ * link here with `?invitation=<id>` and are accepted after signing in.
  */
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import PlatformAcceptInvite from '@/components/platform/PlatformAcceptInvite';
 import { createBrowserClient } from '@/lib/supabase-browser';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +26,11 @@ import {
 } from '@/components/ui/field';
 
 export default function AcceptInvitePage() {
+  const invitationId = useSearchParams().get('invitation');
+  return invitationId ? <PlatformAcceptInvite invitationId={invitationId} /> : <SupabaseAcceptInvite />;
+}
+
+function SupabaseAcceptInvite() {
   const router = useRouter();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');

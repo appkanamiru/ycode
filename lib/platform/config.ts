@@ -29,3 +29,9 @@ export function isPlatformAuth(): boolean {
 export function getSitesDomain(): string | null {
   return process.env.PLATFORM_SITES_DOMAIN?.toLowerCase() || null;
 }
+
+/** Link in invitation emails: the editor's accept page */
+export function getInvitationUrl(invitationId: string): string {
+  const base = process.env.BETTER_AUTH_URL?.replace(/\/+$/, '') ?? '';
+  return `${base}/ycode/accept-invite?invitation=${encodeURIComponent(invitationId)}`;
+}

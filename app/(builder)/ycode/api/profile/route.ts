@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server';
 import { noCache } from '@/lib/api-response';
+import { isPlatformAuth } from '@/lib/platform/config';
+import { handleAccountDelete } from '@/lib/platform/team';
 import { getAuthUser } from '@/lib/supabase-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 
@@ -9,6 +11,8 @@ import { getSupabaseAdmin } from '@/lib/supabase-server';
  * Delete user's profile and account
  */
 export async function DELETE(request: NextRequest) {
+  if (isPlatformAuth()) return handleAccountDelete();
+
   try {
     const auth = await getAuthUser();
     if (!auth) {

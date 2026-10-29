@@ -8,6 +8,8 @@
 
 import nodemailer, { type Transporter } from 'nodemailer';
 
+import { escapeHtml } from '@/lib/escape-html';
+
 let transporter: Transporter | null = null;
 
 function getTransporter(): Transporter | null {
@@ -33,5 +35,27 @@ export async function sendSignInCode(email: string, code: string): Promise<void>
     subject: `Your sign-in code: ${code}`,
     text: `Your sign-in code is ${code}.\n\nIt expires in 10 minutes. If you didn't try to sign in, you can ignore this email.`,
     html: `<p>Your sign-in code is</p><p style="font-size:28px;font-weight:600;letter-spacing:4px">${code}</p><p>It expires in 10 minutes. If you didn't try to sign in, you can ignore this email.</p>`,
+  });
+}
+
+export async function sendSiteInvitation(email: string, siteName: string, inviterName: string, url: string): Promise<void> {
+  const transport = getTransporter();
+
+  if (!transport) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('SMTP_URL is required to send invitations');
+    }
+    console.info(`[platform] Invitation for ${email} to ${siteName}: ${url}`);
+    return;
+  }
+
+  const site = escapeHtml(siteName);
+  const inviter = escapeHtml(inviterName);
+  await transport.sendMail({
+    from: process.env.MAIL_FROM || 'no-reply@localhost',
+    to: email,
+    subject: `${inviterName} invited you to edit ${siteName}`,
+    text: `${inviterName} invited you to edit ${siteName}.\n\nAccept the invitation: ${url}\n\nIf you weren't expecting this, you can ignore this email.`,
+    html: `<p>${inviter} invited you to edit <strong>${site}</strong>.</p><p><a href="${escapeHtml(url)}">Accept the invitation</a></p><p>If you weren't expecting this, you can ignore this email.</p>`,
   });
 }
