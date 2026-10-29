@@ -76,10 +76,13 @@ services:
         condition: service_healthy
 
   caddy:
-    # The wildcard certificate in deploy/Caddyfile needs your DNS provider's
-    # module: build Caddy with it (https://caddyserver.com/docs/build#xcaddy)
-    image: caddy:2.8.4
+    # Caddy with the Cloudflare DNS module, for the wildcard certificate
+    build: ./caddy
+    image: ycode-caddy:2.11.7-cloudflare
     restart: unless-stopped
+    environment:
+      # API token with Zone > DNS > Edit permission on the platform domain
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:?set CLOUDFLARE_API_TOKEN}
     ports:
       - "80:80"
       - "443:443"

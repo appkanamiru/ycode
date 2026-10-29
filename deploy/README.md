@@ -42,24 +42,21 @@ To start over: `docker compose -p ycode down -v` (deletes all data).
 ## Production
 
 1. **Server**: Linux with Docker, ports 80 and 443 open. Note its public IPv4.
-2. **DNS** for your platform domain (e.g. `appkanamiru.cz`):
-   - `app.appkanamiru.cz` → A record to the server
-   - `*.appkanamiru.cz` → A record to the server
-3. **Caddy with your DNS provider's module**, for the wildcard certificate
-   (Let's Encrypt only issues wildcards through DNS). Build an image with
-   [xcaddy](https://caddyserver.com/docs/build#xcaddy), e.g. for Cloudflare:
+2. **DNS** at Cloudflare for your platform domain (e.g. `appkanamiru.cz`):
+   - `app` → A record to the server
+   - `*` → A record to the server
 
-   ```dockerfile
-   FROM caddy:2.8.4-builder AS builder
-   RUN xcaddy build --with github.com/caddy-dns/cloudflare
-   FROM caddy:2.8.4
-   COPY --from=builder /usr/bin/caddy /usr/bin/caddy
-   ```
-
-   Use it for the `caddy` service, pass the provider's API token
-   (`CLOUDFLARE_API_TOKEN`) to it, and adjust the `dns` line and the domains
-   in `deploy/Caddyfile`.
-4. **Configuration**: `cp deploy/.env.example deploy/.env` and fill it in.
+   Set both to **DNS only** (grey cloud), not proxied: customers' own domains
+   CNAME to their site's subdomain, and Cloudflare's proxy refuses traffic for
+   hostnames outside your account (error 1014). Caddy handles HTTPS instead.
+3. **Cloudflare API token** for the wildcard certificate (Let's Encrypt issues
+   wildcards only through a DNS challenge): Cloudflare dashboard → My Profile →
+   API Tokens → Create Token → "Edit zone DNS" template, limited to the
+   platform domain's zone. The `caddy` service is built with the Cloudflare
+   module (`deploy/caddy/Dockerfile`); adjust the domains in `deploy/Caddyfile`
+   if yours differ.
+4. **Configuration**: `cp deploy/.env.example deploy/.env` and fill it in,
+   including `CLOUDFLARE_API_TOKEN`.
    `BETTER_AUTH_SECRET` must be long and random (`openssl rand -base64 48`);
    changing it later signs everyone out.
 5. **Start**:

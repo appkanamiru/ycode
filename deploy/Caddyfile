@@ -16,11 +16,10 @@
 	}
 }
 
-# The editor and the free site subdomains share one wildcard certificate.
-# Wildcards need the DNS challenge: build Caddy with your DNS provider's
-# module (https://caddyserver.com/docs/modules/, e.g. dns.providers.cloudflare)
-# and set its API token. Issuing a certificate per subdomain on demand instead
-# would run into Let's Encrypt's limit of 50 certificates per domain per week.
+# The editor and the free site subdomains share one wildcard certificate,
+# issued through Cloudflare DNS (deploy/caddy/Dockerfile adds the module).
+# Issuing a certificate per subdomain on demand instead would run into Let's
+# Encrypt's limit of 50 certificates per domain per week.
 app.appkanamiru.cz, *.appkanamiru.cz {
 	tls {
 		dns cloudflare {env.CLOUDFLARE_API_TOKEN}

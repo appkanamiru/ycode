@@ -6,8 +6,11 @@
 # emails (sign-in codes, invitations): http://localhost:8025
 
 services:
+  # Plain Caddy: local certificates need no DNS provider
   caddy:
-    image: caddy:2.8.4
+    build: !reset null
+    image: caddy:2.11.7
+    environment: !reset {}
     volumes:
       - ./Caddyfile.local:/etc/caddy/Caddyfile:ro
 
