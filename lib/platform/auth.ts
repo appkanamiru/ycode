@@ -33,12 +33,19 @@ const DOMAINS_TABLE_SQL = `
   create table if not exists ${PLATFORM_SCHEMA}.domains (
     id uuid primary key default gen_random_uuid(),
     tenant_id uuid not null references ${PLATFORM_SCHEMA}.organization (id) on delete cascade,
-    hostname text not null unique,
+    hostname text not null,
     is_primary boolean not null default false,
     verified_at timestamptz,
     created_at timestamptz not null default now()
   );
-  create index if not exists idx_domains_tenant_id on ${PLATFORM_SCHEMA}.domains (tenant_id);`;
+  create index if not exists idx_domains_tenant_id on ${PLATFORM_SCHEMA}.domains (tenant_id);
+  alter table ${PLATFORM_SCHEMA}.domains add column if not exists verification_token text;
+  -- Several sites may claim a hostname while pending; only one can verify it
+  alter table ${PLATFORM_SCHEMA}.domains drop constraint if exists domains_hostname_key;
+  create unique index if not exists domains_verified_hostname_unique
+    on ${PLATFORM_SCHEMA}.domains (hostname) where verified_at is not null;
+  create unique index if not exists domains_tenant_hostname_unique
+    on ${PLATFORM_SCHEMA}.domains (tenant_id, hostname);`;
 
 async function countUsers(): Promise<number> {
   const { rows } = await getPlatformPool().query(`select count(*)::int as count from ${PLATFORM_SCHEMA}."user"`);

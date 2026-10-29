@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import BuilderLoading from '@/components/BuilderLoading';
 import PlatformSignIn from '@/components/platform/PlatformSignIn';
+import SiteDomains from '@/components/platform/SiteDomains';
 import { Alert, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
@@ -101,7 +102,8 @@ export default function SitesPage() {
         {sites.length > 0 && (
           <ul className="flex flex-col divide-y divide-white/10 rounded-lg border border-white/10">
             {sites.map((site) => (
-              <li key={site.id} className="flex items-center justify-between gap-4 p-4">
+              <li key={site.id} className="flex flex-col gap-2 p-4">
+                <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0">
                   <div className="text-sm font-medium truncate">
                     {site.name}
@@ -128,6 +130,13 @@ export default function SitesPage() {
                     {pending === site.slug ? <Spinner /> : 'Open editor'}
                   </Button>
                 </div>
+                </div>
+                {(site.role === 'owner' || site.role === 'admin') && (
+                  <details>
+                    <summary className="cursor-pointer text-xs text-white/50 hover:text-white/80">Domains</summary>
+                    <SiteDomains siteId={site.id} />
+                  </details>
+                )}
               </li>
             ))}
           </ul>

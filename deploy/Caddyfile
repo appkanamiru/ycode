@@ -1,0 +1,42 @@
+# Caddy in front of the multi-tenant platform (YCODE_MULTI_TENANT=true).
+#
+# Replace appkanamiru.cz with your PLATFORM_SITES_DOMAIN, and `app:3002` with
+# the app's address. DNS: point `*.appkanamiru.cz` and `app.appkanamiru.cz`
+# at this server; customers point their own domains here (CNAME to their
+# site's subdomain, or an A record to PLATFORM_DOMAIN_IPV4 for apex domains).
+{
+	email admin@appkanamiru.cz
+
+	# Certificates for customers' domains are requested on the first visit,
+	# only after the app confirms the domain belongs to a site (verified via
+	# its TXT record), so nobody can make this server request certificates
+	# for arbitrary names pointed at it.
+	on_demand_tls {
+		ask http://app:3002/ycode/api/platform/tls-check
+	}
+}
+
+# The editor and the free site subdomains share one wildcard certificate.
+# Wildcards need the DNS challenge: build Caddy with your DNS provider's
+# module (https://caddyserver.com/docs/modules/, e.g. dns.providers.cloudflare)
+# and set its API token. Issuing a certificate per subdomain on demand instead
+# would run into Let's Encrypt's limit of 50 certificates per domain per week.
+app.appkanamiru.cz, *.appkanamiru.cz {
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+	}
+	reverse_proxy app:3002 {
+		# Realtime collaboration streams server-sent events
+		flush_interval -1
+	}
+}
+
+# Customers' own domains
+https:// {
+	tls {
+		on_demand
+	}
+	reverse_proxy app:3002 {
+		flush_interval -1
+	}
+}

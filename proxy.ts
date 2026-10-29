@@ -29,6 +29,7 @@ const PUBLIC_API_EXACT = [
   '/ycode/api/oauth/register', // RFC 7591 Dynamic Client Registration — anonymous
   '/ycode/api/oauth/token',    // OAuth token exchange — auth is via PKCE/refresh
   '/ycode/api/realtime/publish', // Realtime actions — auth is via the signed connection token
+  '/ycode/api/platform/tls-check', // Asked by the TLS terminator before issuing certificates
 ];
 
 /**

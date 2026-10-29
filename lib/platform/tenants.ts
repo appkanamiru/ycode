@@ -14,7 +14,11 @@ import { getPlatformPool } from './db';
 import { getPlatformAuth } from './auth';
 
 const HOST_CACHE_TTL_MS = 30_000;
-const hostCache = new Map<string, { tenantId: string | null; expiresAt: number }>();
+const globalForHosts = globalThis as unknown as {
+  __platformHostCache?: Map<string, { tenantId: string | null; expiresAt: number }>;
+};
+/** On globalThis: the proxy and the routes that change domains are separate bundles */
+const hostCache = globalForHosts.__platformHostCache ??= new Map();
 
 export function normalizeHostname(host: string | null): string | null {
   if (!host) return null;
@@ -37,6 +41,12 @@ async function lookupTenantByHostname(hostname: string): Promise<string | null> 
     [hostname],
   );
   return rows[0]?.tenant_id ?? null;
+}
+
+/** Drop a cached lookup after the hostname's domain changed (this instance only) */
+export function forgetHostname(host: string): void {
+  const hostname = normalizeHostname(host);
+  if (hostname) hostCache.delete(hostname);
 }
 
 export async function resolveTenantByHost(host: string | null): Promise<string | null> {

@@ -85,3 +85,14 @@ export async function getSiteSlug(siteId: string): Promise<string | null> {
   const { rows } = await getPlatformPool().query(`select slug from ${PLATFORM_SCHEMA}.organization where id = $1`, [siteId]);
   return rows[0]?.slug ?? null;
 }
+
+/** The user's role on a site, or null when they are not a member */
+export async function getSiteMembership(userId: string, siteId: string): Promise<{ role: string; slug: string } | null> {
+  const { rows } = await getPlatformPool().query(
+    `select m.role, o.slug from ${PLATFORM_SCHEMA}.member m
+     join ${PLATFORM_SCHEMA}.organization o on o.id = m."organizationId"
+     where m."userId" = $1 and m."organizationId" = $2`,
+    [userId, siteId],
+  );
+  return rows[0] ?? null;
+}

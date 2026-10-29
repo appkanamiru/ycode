@@ -58,10 +58,58 @@ export async function openPlatformSite(slug: string): Promise<boolean> {
 export function slugifySiteName(name: string): string {
   return name
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 40)
     .replace(/-+$/, '');
+}
+
+export interface PlatformDnsRecord {
+  type: 'TXT' | 'CNAME' | 'A';
+  name: string;
+  value: string;
+  purpose: 'verification' | 'routing';
+}
+
+export interface PlatformDomain {
+  id: string;
+  hostname: string;
+  verified: boolean;
+  records: PlatformDnsRecord[];
+}
+
+export interface PlatformDomainCheck {
+  domain: PlatformDomain;
+  ownershipVerified: boolean;
+  routed: boolean;
+}
+
+type Result<T> = { data: T; error: null } | { data: null; error: string };
+
+async function domainRequest<T>(path: string, init?: RequestInit): Promise<Result<T>> {
+  const response = await fetch(`/ycode/api/platform/sites/${path}`, {
+    ...init,
+    headers: init?.body ? { 'Content-Type': 'application/json' } : undefined,
+  });
+  if (response.status === 204) return { data: null as T, error: null };
+  const json = await response.json().catch(() => null);
+  return response.ok ? { data: json.data, error: null } : { data: null, error: json?.error || 'Request failed' };
+}
+
+export function fetchSiteDomains(siteId: string) {
+  return domainRequest<PlatformDomain[]>(`${siteId}/domains`);
+}
+
+export function addSiteDomain(siteId: string, hostname: string) {
+  return domainRequest<PlatformDomain>(`${siteId}/domains`, { method: 'POST', body: JSON.stringify({ hostname }) });
+}
+
+export function verifySiteDomain(siteId: string, domainId: string) {
+  return domainRequest<PlatformDomainCheck>(`${siteId}/domains/${domainId}/verify`, { method: 'POST' });
+}
+
+export function removeSiteDomain(siteId: string, domainId: string) {
+  return domainRequest<null>(`${siteId}/domains/${domainId}`, { method: 'DELETE' });
 }
