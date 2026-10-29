@@ -9,6 +9,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 import { isMultiTenant } from '@/lib/database/tenancy';
 import { findTenantByMcpToken } from './mcp';
+import { getSiteSlug } from './sites';
 import { normalizeHostname, resolveBuilderAccess, resolveTenantByHost } from './tenants';
 
 export interface PlatformRouting {
@@ -23,21 +24,63 @@ function isBuilderHost(host: string | null): boolean {
   return normalizeHostname(host) === normalizeHostname(new URL(builderUrl).host);
 }
 
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+/** Origin of the editor: BETTER_AUTH_URL (the request's own origin is internal behind a proxy) */
+function getBuilderOrigin(request: NextRequest): string {
+  return process.env.BETTER_AUTH_URL ? new URL(process.env.BETTER_AUTH_URL).origin : request.nextUrl.origin;
+}
+
+/**
+ * Writes to the builder API must come from the editor itself. Sites on
+ * sibling subdomains count as the same site for browsers, so SameSite
+ * cookies alone don't stop their scripts from sending a visitor's session.
+ */
+function isCrossOriginWrite(request: NextRequest): boolean {
+  if (SAFE_METHODS.has(request.method)) return false;
+
+  const fetchSite = request.headers.get('sec-fetch-site');
+  if (fetchSite && fetchSite !== 'same-origin' && fetchSite !== 'none') return true;
+
+  const origin = request.headers.get('origin');
+  return Boolean(origin) && origin !== getBuilderOrigin(request);
+}
+
 export async function resolvePlatformRequest(
   request: NextRequest,
-  route: { protectedRoute: boolean; builderPage: boolean; publicPage: boolean },
+  route: { protectedRoute: boolean; builderPage: boolean; publicPage: boolean; publicApi: boolean },
 ): Promise<PlatformRouting> {
   const multiTenant = isMultiTenant();
+  const { pathname } = request.nextUrl;
+  const host = request.headers.get('host');
+
+  // Multi-tenant: the editor is served on the builder host only. On a site's
+  // domain, /ycode opens the editor for that site, and the builder API is not
+  // served (except the public endpoints its published pages call).
+  if (multiTenant && pathname.startsWith('/ycode') && !isBuilderHost(host) && !route.publicApi && !pathname.startsWith('/ycode/storage/')) {
+    const tenantId = await resolveTenantByHost(host);
+    const slug = tenantId ? await getSiteSlug(tenantId) : null;
+    if (slug && route.builderPage && process.env.BETTER_AUTH_URL) {
+      const editor = new URL('/ycode', process.env.BETTER_AUTH_URL);
+      editor.searchParams.set('site', slug);
+      return { response: NextResponse.redirect(editor), tenantId: null };
+    }
+    return { response: new NextResponse('Not found', { status: 404 }), tenantId: null };
+  }
 
   if (route.protectedRoute) {
+    if (isCrossOriginWrite(request)) {
+      return { response: NextResponse.json({ error: 'Cross-origin request rejected' }, { status: 403 }), tenantId: null };
+    }
+
     const access = await resolveBuilderAccess(request.headers);
     if (!access) {
-      return request.nextUrl.pathname.startsWith('/ycode/preview')
+      return pathname.startsWith('/ycode/preview')
         ? { response: NextResponse.redirect(new URL('/ycode', request.url)), tenantId: null }
         : { response: NextResponse.json({ error: 'Not authenticated' }, { status: 401 }), tenantId: null };
     }
     // Platform endpoints (account, creating a site) work before a site is active
-    if (multiTenant && !access.tenantId && !request.nextUrl.pathname.startsWith('/ycode/api/platform/')) {
+    if (multiTenant && !access.tenantId && !pathname.startsWith('/ycode/api/platform/')) {
       return { response: NextResponse.json({ error: 'No active site' }, { status: 403 }), tenantId: null };
     }
     return { tenantId: access.tenantId };
@@ -50,7 +93,6 @@ export async function resolvePlatformRequest(
 
   if (!multiTenant) return { tenantId: null };
 
-  const host = request.headers.get('host');
   const tenantId = await resolveTenantByHost(host);
 
   if (!tenantId && route.publicPage) {

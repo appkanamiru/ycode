@@ -1,17 +1,22 @@
 /**
  * Platform Auth
  *
- * Better Auth on the platform Postgres schema: email + password accounts and
- * organizations, where each organization is a tenant (one website). Members
- * carry the Ycode roles (owner > admin > designer > editor).
+ * Better Auth on the platform Postgres schema: accounts and organizations,
+ * where each organization is a tenant (one website). Members carry the Ycode
+ * roles (owner > admin > designer > editor).
  *
- * Env: DATABASE_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL (the builder origin).
+ * Sign in is passwordless (a code sent by email) in multi-tenant mode; a
+ * single-tenant install keeps email + password for its setup wizard.
+ *
+ * Env: DATABASE_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL (the builder origin),
+ * SMTP_URL + MAIL_FROM (sign-in codes).
  */
 
 import { betterAuth, type BetterAuthOptions } from 'better-auth';
 import { APIError } from 'better-auth/api';
 import { getMigrations } from 'better-auth/db/migration';
 import { nextCookies } from 'better-auth/next-js';
+import { emailOTP } from 'better-auth/plugins/email-otp';
 import { organization } from 'better-auth/plugins/organization';
 import { adminAc, memberAc, ownerAc } from 'better-auth/plugins/organization/access';
 import { PostgresDialect } from 'kysely';
@@ -21,6 +26,8 @@ import { provisionTenant } from '@/lib/database/tenant-provisioning';
 import { isMultiTenant } from '@/lib/database/tenancy';
 import { PLATFORM_AUTH_BASE_PATH, PLATFORM_SCHEMA } from './config';
 import { getPlatformPool } from './db';
+import { sendSignInCode } from './mailer';
+import { countOwnedSites, DEFAULT_SITE_LIMIT, validateSiteSlug } from './sites';
 
 const DOMAINS_TABLE_SQL = `
   create table if not exists ${PLATFORM_SCHEMA}.domains (
@@ -47,6 +54,11 @@ export async function hasPlatformUsers(): Promise<boolean> {
   }
 }
 
+function assertValidSlug(slug: unknown): void {
+  const problem = validateSiteSlug(slug);
+  if (problem) throw new APIError('BAD_REQUEST', { message: problem });
+}
+
 async function firstOrganizationId(userId: string): Promise<string | null> {
   const { rows } = await getPlatformPool().query(
     `select "organizationId" as id from ${PLATFORM_SCHEMA}.member where "userId" = $1 order by "createdAt" limit 1`,
@@ -64,7 +76,15 @@ export function createAuthOptions() {
       type: 'postgres',
       schemaName: PLATFORM_SCHEMA,
     },
-    emailAndPassword: { enabled: true },
+    emailAndPassword: { enabled: !isMultiTenant() },
+    user: {
+      additionalFields: {
+        // Sites the account may own; raised per customer, never by the user
+        siteLimit: { type: 'number', defaultValue: DEFAULT_SITE_LIMIT, input: false, required: false },
+      },
+    },
+    // Stored in the database so limits hold across app instances
+    rateLimit: { enabled: true, storage: 'database' },
     advanced: {
       // tenant_id columns are uuid
       database: { generateId: 'uuid' },
@@ -91,10 +111,24 @@ export function createAuthOptions() {
       },
     },
     plugins: [
+      emailOTP({
+        sendVerificationOTP: async ({ email, otp }) => sendSignInCode(email, otp),
+        otpLength: 6,
+        expiresIn: 10 * 60,
+        storeOTP: 'hashed',
+      }),
       organization({
         roles: { owner: ownerAc, admin: adminAc, designer: memberAc, editor: memberAc },
         creatorRole: 'owner',
+        // true when the user already owns as many sites as their account allows
+        organizationLimit: async (user) =>
+          await countOwnedSites(user.id) >= (Number(user.siteLimit) || DEFAULT_SITE_LIMIT),
         organizationHooks: {
+          // The slug is the site's subdomain
+          beforeCreateOrganization: async ({ organization: created }) => assertValidSlug(created.slug),
+          beforeUpdateOrganization: async ({ organization: changes }) => {
+            if (changes.slug !== undefined) assertValidSlug(changes.slug);
+          },
           afterCreateOrganization: async ({ organization: created }) => {
             await provisionTenant(await getKnexClient(), created.id);
           },

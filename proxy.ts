@@ -207,8 +207,10 @@ export async function proxy(request: NextRequest) {
   // Plain Postgres: platform sessions instead of Supabase Auth, plus tenant resolution
   let tenantId: string | null = null;
   if (isPlatformAuth()) {
+    const publicApi = isPublicApiRoute(pathname, request.method, request.nextUrl.searchParams);
     const routing = await resolvePlatformRequest(request, {
-      protectedRoute: isAuthRoute && !isPublicApiRoute(pathname, request.method, request.nextUrl.searchParams),
+      protectedRoute: isAuthRoute && !publicApi,
+      publicApi,
       // Stored files are public and carry their tenant in the path
       builderPage: pathname.startsWith('/ycode') && !isAuthRoute && !pathname.startsWith('/ycode/storage/'),
       publicPage: (isPublicPage && !isSiteFileRoute) || pathname.startsWith('/dynamic'),

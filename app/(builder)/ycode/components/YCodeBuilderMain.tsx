@@ -33,6 +33,8 @@ import ProfileContent from '../components/ProfileContent';
 import IntegrationsContent from '../components/IntegrationsContent';
 import MigrationChecker from '@/components/MigrationChecker';
 import BuilderLoading from '@/components/BuilderLoading';
+import PlatformSignIn from '@/components/platform/PlatformSignIn';
+import { usePlatformSiteGate } from '@/hooks/use-platform-site-gate';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import { checkCircularReference, detachSpecificLayerFromComponent } from '@/lib/component-utils';
@@ -508,6 +510,10 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
 
   // Check if Supabase is configured, redirect to setup if not
   const [supabaseConfigured, setSupabaseConfigured] = useState<boolean | null>(null);
+  // Platform (plain Postgres): passwordless sign in, and a site picker when multi-tenant
+  const [signInMethod, setSignInMethod] = useState<'password' | 'code'>('password');
+  const [multiTenant, setMultiTenant] = useState(false);
+  const siteReady = usePlatformSiteGate(multiTenant, !!user);
 
   useEffect(() => {
     const checkSupabaseConfig = async () => {
@@ -521,6 +527,8 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
           return;
         }
 
+        setSignInMethod(data.sign_in === 'code' ? 'code' : 'password');
+        setMultiTenant(data.multi_tenant === true);
         setSupabaseConfigured(true);
       } catch (err) {
         console.error('Failed to check Supabase config:', err);
@@ -2169,6 +2177,10 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
   }
 
   // Show login form if not authenticated
+  if (!user && signInMethod === 'code') {
+    return <PlatformSignIn />;
+  }
+
   if (!user) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-neutral-950 py-10">
@@ -2263,6 +2275,11 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
 
       </div>
     );
+  }
+
+  // Multi-tenant: an active site is required before loading anything
+  if (!siteReady) {
+    return <BuilderLoading message="Opening site..." />;
   }
 
   // Check migrations first (BLOCKING) before showing builder

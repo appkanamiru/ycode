@@ -6,6 +6,7 @@ import { useEditorUrl } from '@/hooks/use-editor-url';
 import { findHomepage } from '@/lib/page-utils';
 import { getTranslationValue } from '@/lib/localisation-utils';
 import { Button } from '@/components/ui/button';
+import PlatformSiteMenu from '@/components/platform/PlatformSiteMenu';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -432,6 +433,7 @@ export default function HeaderBar({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
+            <PlatformSiteMenu />
             {isCloudVersion() && (
               <>
                 <DropdownMenuItem asChild>

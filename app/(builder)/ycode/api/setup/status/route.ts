@@ -45,6 +45,9 @@ export async function GET() {
         is_configured: true,
         is_setup_complete: isMultiTenant() || await hasPlatformUsers(),
         is_vercel: process.env.VERCEL === '1',
+        // Multi-tenant sign in is passwordless (emailed code), with a site picker
+        sign_in: isMultiTenant() ? 'code' : 'password',
+        multi_tenant: isMultiTenant(),
       });
     }
 

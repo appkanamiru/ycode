@@ -62,3 +62,13 @@ export function platformSignUp(email: string, password: string): Promise<string 
 export function platformSignOut(): Promise<string | null> {
   return post('/sign-out', {});
 }
+
+/** Email a one-time sign-in code (passwordless sign in and sign up) */
+export function platformSendSignInCode(email: string): Promise<string | null> {
+  return post('/email-otp/send-verification-otp', { email, type: 'sign-in' });
+}
+
+/** Sign in with the emailed code; creates the account on first sign in */
+export function platformSignInWithCode(email: string, otp: string): Promise<string | null> {
+  return post('/sign-in/email-otp', { email, otp });
+}
