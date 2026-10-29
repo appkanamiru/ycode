@@ -68,11 +68,16 @@ export async function resolvePlatformRequest(
     return { response: new NextResponse('Not found', { status: 404 }), tenantId: null };
   }
 
-  if (route.protectedRoute) {
-    if (isCrossOriginWrite(request)) {
-      return { response: NextResponse.json({ error: 'Cross-origin request rejected' }, { status: 403 }), tenantId: null };
-    }
+  // Every endpoint authorized by the session cookie needs the origin check,
+  // including the ones that verify the session themselves (team, account)
+  const cookieAuthorized = route.protectedRoute
+    || pathname.startsWith('/ycode/api/auth/')
+    || pathname.startsWith('/ycode/api/platform/');
+  if (cookieAuthorized && isCrossOriginWrite(request)) {
+    return { response: NextResponse.json({ error: 'Cross-origin request rejected' }, { status: 403 }), tenantId: null };
+  }
 
+  if (route.protectedRoute) {
     const access = await resolveBuilderAccess(request.headers);
     if (!access) {
       return pathname.startsWith('/ycode/preview')
