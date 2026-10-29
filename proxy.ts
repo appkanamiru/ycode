@@ -24,6 +24,9 @@ const PUBLIC_API_PREFIXES = [
  */
 const PUBLIC_COLLECTION_ITEM_SUFFIXES = ['/items/filter', '/items/load-more'];
 
+/** Static files in public/ycode (not API, storage or builder routes) */
+const PUBLIC_YCODE_FILE = /^\/ycode\/(?!api\/|storage\/)[\w\-/]+\.(webp|png|jpe?g|gif|svg|avif|ico|woff2?)$/i;
+
 const PUBLIC_API_EXACT = [
   '/ycode/api/revalidate', // Cache revalidation — has own secret token auth
   '/ycode/api/oauth/register', // RFC 7591 Dynamic Client Registration — anonymous
@@ -205,9 +208,14 @@ export async function proxy(request: NextRequest) {
     || pathname.startsWith('/.well-known/')
     || ['/robots.txt', '/sitemap.xml', '/llms.txt'].includes(pathname);
 
+  // Files from public/ under /ycode (layout previews and the images layouts
+  // insert into pages) are the same for everyone: served on any host, without
+  // a session or tenant. Next's image optimizer also requests them internally.
+  const isPublicYcodeFile = PUBLIC_YCODE_FILE.test(pathname);
+
   // Plain Postgres: platform sessions instead of Supabase Auth, plus tenant resolution
   let tenantId: string | null = null;
-  if (isPlatformAuth()) {
+  if (isPlatformAuth() && !isPublicYcodeFile) {
     const publicApi = isPublicApiRoute(pathname, request.method, request.nextUrl.searchParams);
     const routing = await resolvePlatformRequest(request, {
       protectedRoute: isAuthRoute && !publicApi,
