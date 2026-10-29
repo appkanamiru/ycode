@@ -1,0 +1,98 @@
+# Multi-tenant Ycode platform: app, migrations, Postgres, Redis and Caddy.
+#
+#   docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
+#
+# Copy deploy/.env.example to deploy/.env first. For a local run, see
+# docker-compose.local.yml and deploy/README.md.
+
+name: ycode
+
+x-app-environment: &app-environment
+  YCODE_DB_DRIVER: postgres
+  YCODE_MULTI_TENANT: "true"
+  DATABASE_URL: postgres://ycode:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/ycode
+  REDIS_URL: redis://redis:6379
+  STORAGE_DIR: /data/uploads
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET}
+  BETTER_AUTH_URL: ${BETTER_AUTH_URL:?set BETTER_AUTH_URL (the editor, e.g. https://app.example.com)}
+  PLATFORM_SITES_DOMAIN: ${PLATFORM_SITES_DOMAIN:?set PLATFORM_SITES_DOMAIN (e.g. example.com)}
+  PLATFORM_DOMAIN_IPV4: ${PLATFORM_DOMAIN_IPV4:-}
+  SMTP_URL: ${SMTP_URL:?set SMTP_URL}
+  MAIL_FROM: ${MAIL_FROM:?set MAIL_FROM}
+
+x-app-image: &app-image
+  build:
+    context: ..
+    dockerfile: Dockerfile
+  image: ycode-platform:latest
+
+services:
+  postgres:
+    image: postgres:16.15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ycode
+      POSTGRES_USER: ycode
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ycode -d ycode"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Realtime fan-out and presence; holds no data worth persisting
+  redis:
+    image: redis:7.4.12-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Runs pending migrations (and tenancy, platform schema), then exits
+  migrate:
+    <<: *app-image
+    command: ["npm", "run", "migrate:postgres"]
+    environment: *app-environment
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  app:
+    <<: *app-image
+    restart: unless-stopped
+    environment: *app-environment
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  caddy:
+    # The wildcard certificate in deploy/Caddyfile needs your DNS provider's
+    # module: build Caddy with it (https://caddyserver.com/docs/build#xcaddy)
+    image: caddy:2.8.4
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+
+volumes:
+  postgres-data:
+  uploads:
+  caddy-data:
+  caddy-config:

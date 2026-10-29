@@ -1,0 +1,27 @@
+# Local run of the platform: like deploy/Caddyfile, but certificates come from
+# Caddy's own local CA instead of Let's Encrypt. *.localtest.me resolves to
+# 127.0.0.1 in public DNS, so no hosts file changes are needed.
+
+{
+	local_certs
+	on_demand_tls {
+		ask http://app:3002/ycode/api/platform/tls-check
+	}
+}
+
+app.localtest.me, *.localtest.me {
+	tls internal
+	reverse_proxy app:3002 {
+		flush_interval -1
+	}
+}
+
+# Customers' own domains (point them at 127.0.0.1 in your hosts file to try)
+https:// {
+	tls {
+		on_demand
+	}
+	reverse_proxy app:3002 {
+		flush_interval -1
+	}
+}
