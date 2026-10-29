@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
+import { getSupabaseStorage } from '@/lib/supabase-storage';
 import { createAsset } from '@/lib/repositories/assetRepository';
 import { STORAGE_BUCKET, getDisplayName } from '@/lib/asset-constants';
 
@@ -30,13 +31,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = await getSupabaseAdmin();
+    const supabase = await getDbClient();
 
     if (!supabase) {
       return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
     }
 
-    const { data: urlData } = supabase.storage
+    const { data: urlData } = (await getSupabaseStorage())
       .from(STORAGE_BUCKET)
       .getPublicUrl(storagePath);
 

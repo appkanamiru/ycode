@@ -8,7 +8,8 @@ import { createItemsBulk, enrichItemsWithStatus } from '@/lib/repositories/colle
 import { insertValuesBulk } from '@/lib/repositories/collectionItemValueRepository';
 import { findStatusFieldId } from '@/lib/collection-field-utils';
 import { createAsset } from '@/lib/repositories/assetRepository';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
+import { getSupabaseStorage } from '@/lib/supabase-storage';
 import { STORAGE_BUCKET, STORAGE_FOLDERS } from '@/lib/asset-constants';
 import { getSampleCollectionById } from '@/lib/sample-collections';
 import type { SampleCollectionDefinition, SampleFieldDefinition, SampleItemDefinition } from '@/lib/sample-collections';
@@ -156,7 +157,7 @@ export async function createSampleCollection(
  * Avoids duplicate storage files and DB records for the same sample image.
  */
 async function getOrUploadSampleImage(filename: string): Promise<Asset> {
-  const supabase = await getSupabaseAdmin();
+  const supabase = await getDbClient();
   if (!supabase) {
     throw new Error('Supabase not configured');
   }
@@ -187,7 +188,7 @@ async function getOrUploadSampleImage(filename: string): Promise<Asset> {
   const ext = path.extname(filename).slice(1) || 'jpg';
   const storagePath = `${STORAGE_FOLDERS.WEBSITE}/${timestamp}-${random}.${ext}`;
 
-  const { data, error } = await supabase.storage
+  const { data, error } = await (await getSupabaseStorage())
     .from(STORAGE_BUCKET)
     .upload(storagePath, buffer, {
       cacheControl: '3600',
@@ -199,7 +200,7 @@ async function getOrUploadSampleImage(filename: string): Promise<Asset> {
     throw new Error(`Failed to upload sample image "${filename}": ${error.message}`);
   }
 
-  const { data: urlData } = supabase.storage
+  const { data: urlData } = (await getSupabaseStorage())
     .from(STORAGE_BUCKET)
     .getPublicUrl(data.path);
 

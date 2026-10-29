@@ -19,7 +19,7 @@ import path from 'path'
 
 import { withSvgIntrinsicSize } from '@/lib/asset-utils'
 import { base62ToUuid } from '@/lib/convertion-utils'
-import { getSupabaseAdmin } from '@/lib/supabase-server'
+import { getDbClient } from '@/lib/database/pg-client'
 
 import { mediaContentType, type OutputFile } from './writers/types'
 
@@ -69,7 +69,7 @@ export async function collectSupabaseAssets(htmlOutputs: OutputFile[]): Promise<
   }
   if (proxyUrls.size === 0) return []
 
-  const client = (await getSupabaseAdmin()) as SupabaseAssetClient | null
+  const client = (await getDbClient()) as SupabaseAssetClient | null
   if (!client) {
     console.warn('[Static Export] Could not bundle Supabase assets: Supabase client unavailable')
     return []

@@ -1,6 +1,6 @@
 import { cache } from 'react';
 import { escapeHtml } from '@/lib/escape-html';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { getKnexClient } from '@/lib/knex-client';
 import { buildSlugPath, buildDynamicPageUrl, buildLocalizedDynamicPageUrl, detectLocaleFromPath, matchPageWithTranslatedSlugs, matchDynamicPageWithTranslatedSlugs } from '@/lib/page-utils';
 import { getItemWithValues, getItemsWithValues, getItemsWithValuesByIds, getItemIdsByFieldValue, getItemsByCollectionId, getSlugsByItemIds } from '@/lib/repositories/collectionItemRepository';
@@ -255,7 +255,7 @@ export async function loadTranslationsForLocale(
   tenantId?: string
 ): Promise<{ locale: Locale | null; translations: Record<string, Translation> }> {
   try {
-    const supabase = await getSupabaseAdmin(tenantId);
+    const supabase = await getDbClient(tenantId);
 
     if (!supabase) {
       return { locale: null, translations: {} };
@@ -416,7 +416,7 @@ async function getCollectionItemBySlug(
   tenantId?: string
 ): Promise<CollectionItemWithValues | null> {
   try {
-    const supabase = await getSupabaseAdmin(tenantId);
+    const supabase = await getDbClient(tenantId);
 
     if (!supabase) {
       return null;
@@ -517,7 +517,7 @@ async function fetchPageByPathInternal(
 ): Promise<PageData | null> {
   try {
     const resolveLayers = options?.resolveLayers !== false;
-    const supabase = await getSupabaseAdmin(tenantId);
+    const supabase = await getDbClient(tenantId);
 
     if (!supabase) {
       console.error('Supabase not configured');
@@ -945,7 +945,7 @@ export async function fetchErrorPage(
   options: { throwOnError?: boolean } = {}
 ): Promise<PageData | null> {
   try {
-    const supabase = await getSupabaseAdmin(tenantId);
+    const supabase = await getDbClient(tenantId);
 
     if (!supabase) {
       throw new Error('Supabase not configured');
@@ -1057,7 +1057,7 @@ export const fetchHomepage = cache(async function fetchHomepage(
   translations?: Record<string, Translation>
 ): Promise<Pick<PageData, 'page' | 'pageLayers' | 'components' | 'locale' | 'availableLocales' | 'translations' | 'generatedCss'> | null> {
   try {
-    const supabase = await getSupabaseAdmin(tenantId);
+    const supabase = await getDbClient(tenantId);
 
     if (!supabase) {
       return null;
@@ -2204,7 +2204,7 @@ async function buildCollectionCache(
   };
   if (collectionIds.size === 0) return empty;
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) return empty;
 
   // Warm direct DB connection in parallel so first-hit value queries don't pay

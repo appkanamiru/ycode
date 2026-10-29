@@ -6,7 +6,7 @@
  */
 
 import { randomUUID } from 'crypto';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import type { LayerStyle, Layer, ComponentVariant } from '@/types';
 import {
   generateLayerStyleContentHash,
@@ -51,7 +51,7 @@ export interface LayerStyleSoftDeleteResult {
  * Get all layer styles (draft by default, excludes soft deleted)
  */
 export async function getAllStyles(isPublished: boolean = false): Promise<LayerStyle[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -75,7 +75,7 @@ export async function getAllStyles(isPublished: boolean = false): Promise<LayerS
  * With composite primary key, we need to specify is_published to get a single row
  */
 export async function getStyleById(id: string, isPublished: boolean = false): Promise<LayerStyle | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -102,7 +102,7 @@ export async function getStyleById(id: string, isPublished: boolean = false): Pr
  * Get a layer style by ID including soft deleted (for restoration)
  */
 export async function getStyleByIdIncludingDeleted(id: string, isPublished: boolean = false): Promise<LayerStyle | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -130,7 +130,7 @@ export async function getStyleByIdIncludingDeleted(id: string, isPublished: bool
 export async function createStyle(
   styleData: CreateLayerStyleData
 ): Promise<LayerStyle> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -179,7 +179,7 @@ export async function createStyles(
     return [];
   }
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -222,7 +222,7 @@ export async function updateStyle(
   id: string,
   updates: Partial<Pick<LayerStyle, 'name' | 'classes' | 'design'>>
 ): Promise<LayerStyle> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -267,7 +267,7 @@ export async function updateStyle(
  * Used to find the published version of a draft layer style
  */
 export async function getPublishedStyleById(id: string): Promise<LayerStyle | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -295,7 +295,7 @@ export async function getPublishedStyleById(id: string): Promise<LayerStyle | nu
  * Uses composite primary key (id, is_published) - same ID for draft and published versions
  */
 export async function publishLayerStyle(draftStyleId: string): Promise<LayerStyle> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -341,7 +341,7 @@ export async function publishLayerStyles(styleIds: string[]): Promise<{ count: n
     return { count: 0, changedStyleIds: [] };
   }
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -418,7 +418,7 @@ export async function publishLayerStyles(styleIds: string[]): Promise<{ count: n
  * - Its draft content_hash differs from published content_hash (needs republishing)
  */
 export async function getUnpublishedLayerStyles(): Promise<LayerStyle[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -481,7 +481,7 @@ export async function getUnpublishedLayerStyles(): Promise<LayerStyle[]> {
  * Hard-delete soft-deleted draft layer styles and their published counterparts.
  */
 export async function hardDeleteSoftDeletedLayerStyles(): Promise<{ count: number }> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -530,7 +530,7 @@ export async function hardDeleteSoftDeletedLayerStyles(): Promise<{ count: numbe
  * Count unpublished layer styles from id/hash only — not full design rows.
  */
 export async function getUnpublishedLayerStylesCount(): Promise<number> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -591,7 +591,7 @@ function layersContainStyle(layers: Layer[], styleId: string): boolean {
  * Returns detailed info including previous and new layers for undo/redo
  */
 export async function findEntitiesUsingLayerStyle(styleId: string): Promise<LayerStyleAffectedEntity[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -701,7 +701,7 @@ export async function findEntitiesUsingLayerStyle(styleId: string): Promise<Laye
  * Returns the deleted style and affected entities for undo/redo
  */
 export async function softDeleteStyle(id: string): Promise<LayerStyleSoftDeleteResult> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -797,7 +797,7 @@ export async function softDeleteStyle(id: string): Promise<LayerStyleSoftDeleteR
  * Restore a soft-deleted layer style
  */
 export async function restoreLayerStyle(id: string): Promise<LayerStyle> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -822,7 +822,7 @@ export async function restoreLayerStyle(id: string): Promise<LayerStyle> {
  * @deprecated Use softDeleteStyle instead for undo/redo support
  */
 export async function deleteStyle(id: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -889,7 +889,7 @@ export async function syncLayerStyleChangesToDrafts(
     return { affectedPageIds: [], affectedComponentIds: [] };
   }
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     return { affectedPageIds: [], affectedComponentIds: [] };
   }

@@ -3,7 +3,8 @@
  * Converts image buffers to WebP and uploads to Supabase Storage
  */
 
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
+import { getSupabaseStorage } from '@/lib/supabase-storage';
 import { STORAGE_BUCKET, STORAGE_FOLDERS } from '@/lib/asset-constants';
 import sharp from 'sharp';
 
@@ -27,7 +28,7 @@ export async function convertToWebP(imageBuffer: Buffer, quality: number = 85): 
  * @returns Public URL of the uploaded thumbnail
  */
 export async function uploadThumbnail(componentId: string, imageBuffer: Buffer): Promise<string> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -36,7 +37,7 @@ export async function uploadThumbnail(componentId: string, imageBuffer: Buffer):
   const webpBuffer = await convertToWebP(imageBuffer);
   const storagePath = `${STORAGE_FOLDERS.COMPONENTS}/${componentId}.webp`;
 
-  const { data, error } = await client.storage
+  const { data, error } = await (await getSupabaseStorage())
     .from(STORAGE_BUCKET)
     .upload(storagePath, webpBuffer, {
       cacheControl: '3600',
@@ -48,7 +49,7 @@ export async function uploadThumbnail(componentId: string, imageBuffer: Buffer):
     throw new Error(`Failed to upload thumbnail: ${error.message}`);
   }
 
-  const { data: urlData } = client.storage
+  const { data: urlData } = (await getSupabaseStorage())
     .from(STORAGE_BUCKET)
     .getPublicUrl(data.path);
 
@@ -60,7 +61,7 @@ export async function uploadThumbnail(componentId: string, imageBuffer: Buffer):
  * @param componentId - Component ID used as filename
  */
 export async function deleteThumbnail(componentId: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -68,7 +69,7 @@ export async function deleteThumbnail(componentId: string): Promise<void> {
 
   const storagePath = `${STORAGE_FOLDERS.COMPONENTS}/${componentId}.webp`;
 
-  const { error } = await client.storage
+  const { error } = await (await getSupabaseStorage())
     .from(STORAGE_BUCKET)
     .remove([storagePath]);
 

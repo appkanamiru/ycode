@@ -5,7 +5,7 @@
  * Both operations follow the same pattern with inverted is_published values.
  */
 
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { SUPABASE_QUERY_LIMIT, SUPABASE_WRITE_BATCH_SIZE } from '@/lib/supabase-constants';
 
 /** Direction of the sync operation */
@@ -31,7 +31,7 @@ export async function syncTableRows(
   direction: SyncDirection,
   options?: { ids?: string[]; excludeColumns?: string[] }
 ): Promise<number> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -108,7 +108,7 @@ export async function cleanupOrphanedRows(
     collectColumns?: string[];
   }
 ): Promise<CleanupResult> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -214,7 +214,7 @@ export async function syncTableRowsByParent(
 ): Promise<number> {
   if (parentIds.length === 0) return 0;
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -273,7 +273,7 @@ export async function cleanupOrphanedChildRows(
   parentColumn: string,
   parentTable: string
 ): Promise<number> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -329,7 +329,7 @@ export async function getDeletedDraftSummaries(
   tableName: string,
   nameColumn: 'name' | 'filename' = 'name'
 ): Promise<Array<{ id: string; name: string }>> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) throw new Error('Supabase not configured');
 
   const deletedQuery = nameColumn === 'filename'
@@ -374,7 +374,7 @@ export async function getDeletedDraftSummaries(
  * Works for any table with (id, is_published, deleted_at) columns.
  */
 export async function getDeletedDraftCount(tableName: string): Promise<number> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) throw new Error('Supabase not configured');
 
   const { data: deletedDrafts, error: draftError } = await client

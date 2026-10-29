@@ -289,9 +289,9 @@ export async function POST(
     }
 
     // Now create the published version with the same ID
-    const { getSupabaseAdmin } = await import('@/lib/supabase-server');
+    const { getDbClient } = await import('@/lib/database/pg-client');
     const { getValuesByItemId } = await import('@/lib/repositories/collectionItemValueRepository');
-    const client = await getSupabaseAdmin();
+    const client = await getDbClient();
 
     if (client) {
       // Insert published item with same ID

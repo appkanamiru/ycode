@@ -4,7 +4,8 @@
  * Handles uploading custom font files to Supabase Storage and creating font records.
  */
 
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
+import { getSupabaseStorage } from '@/lib/supabase-storage';
 import { createFont } from '@/lib/repositories/fontRepository';
 import { STORAGE_BUCKET, STORAGE_FOLDERS } from '@/lib/asset-constants';
 import { mapExtensionToFontFormat } from '@/lib/font-utils';
@@ -22,7 +23,7 @@ export async function uploadFontFile(
   fontName?: string,
 ): Promise<Font | null> {
   try {
-    const supabase = await getSupabaseAdmin();
+    const supabase = await getDbClient();
 
     if (!supabase) {
       throw new Error('Supabase client not available');
@@ -44,7 +45,7 @@ export async function uploadFontFile(
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    const { data, error } = await supabase.storage
+    const { data, error } = await (await getSupabaseStorage())
       .from(STORAGE_BUCKET)
       .upload(storagePath, buffer, {
         cacheControl: '31536000', // Cache for 1 year (fonts don't change)
@@ -57,7 +58,7 @@ export async function uploadFontFile(
       return null;
     }
 
-    const { data: urlData } = supabase.storage
+    const { data: urlData } = (await getSupabaseStorage())
       .from(STORAGE_BUCKET)
       .getPublicUrl(data.path);
 

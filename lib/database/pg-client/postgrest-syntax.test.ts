@@ -14,6 +14,17 @@ test('select lists with embedded resources', () => {
   assert.deepEqual(parseSelect('*, collection_fields(*)')[1], {
     type: 'embed', relation: 'collection_fields', inner: false, items: [{ type: 'star' }],
   });
+  // multi-line template literal with an explicit left join, as in collectionRepository
+  assert.deepEqual(parseSelect(`
+      *,
+      collection_items!left(id, deleted_at)
+    `)[1], {
+    type: 'embed',
+    relation: 'collection_items',
+    inner: false,
+    items: [{ type: 'column', name: 'id' }, { type: 'column', name: 'deleted_at' }],
+  });
+  assert.throws(() => parseSelect('collection_items!fk_items(id)'));
 });
 
 test('unsupported select syntax throws', () => {

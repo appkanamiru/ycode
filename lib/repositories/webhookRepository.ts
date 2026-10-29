@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 
 /**
  * Webhook Repository
@@ -98,7 +98,7 @@ export interface UpdateWebhookDeliveryData {
  * Get all webhooks
  */
 export async function getAllWebhooks(): Promise<Webhook[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -120,7 +120,7 @@ export async function getAllWebhooks(): Promise<Webhook[]> {
  * Get webhook by ID
  */
 export async function getWebhookById(id: string): Promise<Webhook | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -143,7 +143,7 @@ export async function getWebhookById(id: string): Promise<Webhook | null> {
  * Get all enabled webhooks for a specific event type
  */
 export async function getWebhooksForEvent(eventType: WebhookEventType): Promise<Webhook[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -168,7 +168,7 @@ export async function getWebhooksForEvent(eventType: WebhookEventType): Promise<
  * Create a new webhook
  */
 export async function createWebhook(webhookData: CreateWebhookData): Promise<Webhook> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -201,7 +201,7 @@ export async function createWebhook(webhookData: CreateWebhookData): Promise<Web
  * Update a webhook
  */
 export async function updateWebhook(id: string, updates: UpdateWebhookData): Promise<Webhook> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -236,7 +236,7 @@ export async function updateWebhook(id: string, updates: UpdateWebhookData): Pro
  * Delete a webhook
  */
 export async function deleteWebhook(id: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -256,7 +256,7 @@ export async function deleteWebhook(id: string): Promise<void> {
  * Update webhook trigger timestamp and reset failure count on success
  */
 export async function markWebhookTriggered(id: string, success: boolean): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -281,7 +281,7 @@ export async function markWebhookTriggered(id: string, success: boolean): Promis
  * Increment webhook failure count (called when delivery fails)
  */
 export async function incrementWebhookFailureCount(id: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -321,7 +321,7 @@ export async function incrementWebhookFailureCount(id: string): Promise<void> {
 export async function createWebhookDelivery(
   deliveryData: CreateWebhookDeliveryData
 ): Promise<WebhookDelivery> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -354,7 +354,7 @@ export async function updateWebhookDelivery(
   id: string,
   updates: UpdateWebhookDeliveryData
 ): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -377,7 +377,7 @@ export async function getWebhookDeliveries(
   webhookId: string,
   options: { limit?: number; offset?: number } = {}
 ): Promise<{ deliveries: WebhookDelivery[]; total: number }> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -418,7 +418,7 @@ export async function getWebhookDeliveries(
  * Delete old webhook deliveries (cleanup)
  */
 export async function deleteOldWebhookDeliveries(olderThanDays: number = 30): Promise<number> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');

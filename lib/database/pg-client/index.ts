@@ -13,8 +13,8 @@
 import knex from 'knex';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { getSupabaseAdmin, getTenantIdFromHeaders } from '@/lib/supabase-server';
-import { isMultiTenant } from '@/lib/database/tenancy';
+import { getSupabaseAdmin, getTenantIdFromHeaders } from '../../supabase-server';
+import { isMultiTenant } from '../tenancy';
 import { createPgClient, type PgClient } from './client';
 
 export { createPgClient } from './client';

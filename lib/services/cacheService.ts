@@ -1,7 +1,8 @@
 import { revalidateTag, revalidatePath } from 'next/cache';
 import { invalidateByTag } from '@vercel/functions';
 import { GLOBAL_SETTINGS_TAG } from '@/lib/cache-tags';
-import { getSupabaseAdmin, getSupabaseConfig } from '@/lib/supabase-server';
+import { getSupabaseConfig } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { buildSlugPath, normalizeSlugSegment } from '@/lib/page-utils';
 import type { Page, PageFolder } from '@/types';
 import type {
@@ -31,7 +32,7 @@ const MAX_ROUTES_TO_WARM_TOTAL = (() => {
   return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 2000;
 })();
 
-type SupabaseAdmin = NonNullable<Awaited<ReturnType<typeof getSupabaseAdmin>>>;
+type SupabaseAdmin = NonNullable<Awaited<ReturnType<typeof getDbClient>>>;
 
 const SUPABASE_IN_LIMIT = 500;
 
@@ -163,7 +164,7 @@ export async function clearAllCache(): Promise<void> {
 export async function getRoutePathsForPages(pageIds: string[]): Promise<string[]> {
   if (pageIds.length === 0) return [];
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) return [];
 
   const [
@@ -352,7 +353,7 @@ export async function getRoutePathsForDeletedCollectionItems(
 ): Promise<string[]> {
   if (deletedSlugs.size === 0) return [];
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) return [];
 
   const routes: string[] = [];
@@ -504,7 +505,7 @@ export interface SelectiveInvalidationResult {
 async function hasErrorPage(pageIds: string[]): Promise<boolean> {
   if (pageIds.length === 0) return false;
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) return false;
 
   for (const ids of chunk(pageIds, SUPABASE_IN_LIMIT)) {
@@ -603,7 +604,7 @@ export async function invalidateGlobalSettings(): Promise<boolean> {
  * visitor doesn't pay the cold-cache cost.
  */
 export async function getAllPublishedRoutes(): Promise<string[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) return [];
 
   const { data: pages } = await client
@@ -860,7 +861,7 @@ interface CurrentLocalisationState {
 
 /** Read everything we need to construct locale URLs (post-upsert state). */
 async function loadCurrentLocalisationState(): Promise<CurrentLocalisationState | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) return null;
 
   const [

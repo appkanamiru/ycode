@@ -1,5 +1,6 @@
 import { getKnexClient, closeKnexClient, testKnexConnection } from '../knex-client';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
+import { getSupabaseStorage } from '@/lib/supabase-storage';
 import { STORAGE_BUCKET } from '@/lib/asset-constants';
 import { YCODE_EXTERNAL_API_URL } from '@/lib/config';
 
@@ -445,7 +446,7 @@ export async function collectTemplateAssets(): Promise<
     mimeType: string;
   }>
   > {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     console.error('[collectTemplateAssets] Supabase not configured');
     return [];
@@ -472,7 +473,7 @@ export async function collectTemplateAssets(): Promise<
 
   for (const asset of assets) {
     try {
-      const { data, error: downloadError } = await client.storage
+      const { data, error: downloadError } = await (await getSupabaseStorage())
         .from(STORAGE_BUCKET)
         .download(asset.storage_path);
 
@@ -511,7 +512,7 @@ export async function collectTemplateAssets(): Promise<
   } else if (fonts && fonts.length > 0) {
     for (const font of fonts) {
       try {
-        const { data, error: downloadError } = await client.storage
+        const { data, error: downloadError } = await (await getSupabaseStorage())
           .from(STORAGE_BUCKET)
           .download(font.storage_path);
 

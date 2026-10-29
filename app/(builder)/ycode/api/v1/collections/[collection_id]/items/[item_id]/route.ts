@@ -4,7 +4,7 @@ import { getCollectionById } from '@/lib/repositories/collectionRepository';
 import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
 import { getItemWithValues, deleteItem } from '@/lib/repositories/collectionItemRepository';
 import { setValues } from '@/lib/repositories/collectionItemValueRepository';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { invalidateForCollectionChange } from '@/lib/services/cacheService';
 import type { CollectionField, CollectionItemWithValues } from '@/types';
 import { transformItemToPublicWithRefs, parseFieldProjections } from '../../../../reference-resolver';
@@ -187,7 +187,7 @@ export async function PUT(
     }
 
     // Update the item's updated_at timestamp for both draft and published
-    const client = await getSupabaseAdmin();
+    const client = await getDbClient();
     if (client) {
       await client
         .from('collection_items')
@@ -323,7 +323,7 @@ export async function PATCH(
     }
 
     // Update the item's updated_at timestamp for both draft and published
-    const client = await getSupabaseAdmin();
+    const client = await getDbClient();
     if (client) {
       await client
         .from('collection_items')

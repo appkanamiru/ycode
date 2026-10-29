@@ -32,7 +32,8 @@ export type SelectItem =
 
 const FILTER_OPERATORS = new Set<string>(['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike', 'is', 'in']);
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const EMBED = /^([A-Za-z_][A-Za-z0-9_]*)(!inner)?\(([\s\S]*)\)$/;
+/** `relation(...)`, `relation!inner(...)` or `relation!left(...)` (left is the default) */
+const EMBED = /^([A-Za-z_][A-Za-z0-9_]*)(?:!(inner|left))?\(([\s\S]*)\)$/;
 
 export function isFilterOperator(value: string): value is FilterOperator {
   return FILTER_OPERATORS.has(value);
@@ -89,7 +90,7 @@ export function parseSelect(columns: string): SelectItem[] {
       if (items.some((child) => child.type === 'embed')) {
         throw new Error(`Nested embeds are not supported: "${item}"`);
       }
-      return { type: 'embed', relation: embed[1], inner: Boolean(embed[2]), items };
+      return { type: 'embed', relation: embed[1], inner: embed[2] === 'inner', items };
     }
 
     if (!IDENTIFIER.test(item)) {

@@ -10,7 +10,7 @@
 import { getKnexClient } from '../knex-client';
 import { getPublishedPagesByIds } from '@/lib/repositories/pageRepository';
 import { batchPublishPageLayers } from '@/lib/repositories/pageLayersRepository';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { buildSlugPath } from '@/lib/page-utils';
 import type { Page, PageFolder } from '@/types';
 
@@ -190,7 +190,7 @@ export async function publishPages(pageIds: string[]): Promise<PublishPagesResul
     getPublishedPageFoldersByIds,
   } = await import('../repositories/pageFolderRepository');
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Supabase not configured');
   }

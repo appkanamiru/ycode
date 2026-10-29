@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'crypto';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { noCache } from '@/lib/api-response';
 import { parseAuthCookie, buildAuthCookieValue, PAGE_AUTH_COOKIE_NAME } from '@/lib/page-auth';
 import { getClientIp } from '@/lib/request-utils';
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get Supabase client
-    const supabase = await getSupabaseAdmin();
+    const supabase = await getDbClient();
     if (!supabase) {
       return noCache({ error: 'Database not configured' }, 500);
     }

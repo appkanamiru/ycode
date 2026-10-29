@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 
 /**
  * App Settings Repository
@@ -28,7 +28,7 @@ export interface AppSetting {
  * Get all settings for a specific app
  */
 export async function getAppSettings(appId: string): Promise<AppSetting[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -54,7 +54,7 @@ export async function getAppSetting(
   appId: string,
   key: string
 ): Promise<AppSetting | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -100,7 +100,7 @@ export async function hasAppSetting(
  * Get all app IDs that have settings configured (i.e. connected apps)
  */
 export async function getConnectedAppIds(): Promise<string[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -132,7 +132,7 @@ export async function setAppSetting(
   key: string,
   value: unknown
 ): Promise<AppSetting> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -166,7 +166,7 @@ export async function deleteAppSetting(
   appId: string,
   key: string
 ): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -187,7 +187,7 @@ export async function deleteAppSetting(
  * Delete all settings for an app (disconnect)
  */
 export async function deleteAllAppSettings(appId: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');

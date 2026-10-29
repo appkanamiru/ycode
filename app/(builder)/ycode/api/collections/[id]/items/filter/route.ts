@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
 import { getItemsByCollectionId } from '@/lib/repositories/collectionItemRepository';
 import { getValuesByItemIds } from '@/lib/repositories/collectionItemValueRepository';
@@ -16,7 +16,7 @@ import type { Layer, CollectionItem, CollectionItemWithValues } from '@/types';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-type SupabaseClient = NonNullable<Awaited<ReturnType<typeof getSupabaseAdmin>>>;
+type SupabaseClient = NonNullable<Awaited<ReturnType<typeof getDbClient>>>;
 
 interface FilterCondition {
   fieldId: string;
@@ -508,7 +508,7 @@ async function getFilteredItemIds(
   timezone: string,
   pageCollectionItemId?: string,
 ): Promise<{ matchingIds: string[]; total: number }> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) throw new Error('Supabase client not configured');
 
   const allItemIds = await getAllItemIdsForCollection(client, collectionId, isPublished);
@@ -573,7 +573,7 @@ async function getFieldValuesForItems(
   itemIds: string[],
 ): Promise<Map<string, string>> {
   if (itemIds.length === 0) return new Map();
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) throw new Error('Supabase client not configured');
 
   const rows = await chunkedQuery<{ item_id: string; value: string | null }>(

@@ -12,7 +12,7 @@
  */
 
 import { cache } from 'react';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import type {
   GlobalVariable,
   CreateGlobalVariableData,
@@ -44,7 +44,7 @@ function globalSignature(v: GlobalVariable): string {
 export const getAllGlobalVariables = cache(async (
   isPublished: boolean = false
 ): Promise<GlobalVariable[]> => {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -69,7 +69,7 @@ export async function getGlobalVariableById(
   id: string,
   isPublished: boolean = false
 ): Promise<GlobalVariable | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -96,7 +96,7 @@ export async function getGlobalVariableById(
 export async function createGlobalVariable(
   variableData: CreateGlobalVariableData
 ): Promise<GlobalVariable> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -140,7 +140,7 @@ export async function updateGlobalVariable(
   id: string,
   updates: UpdateGlobalVariableData
 ): Promise<GlobalVariable> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -168,7 +168,7 @@ export async function updateGlobalVariable(
  * lets change detection surface the pending deletion in the publish modal.
  */
 export async function softDeleteGlobalVariable(id: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -191,7 +191,7 @@ export async function softDeleteGlobalVariable(id: string): Promise<void> {
  * deletion). Used to surface "unpublished changes" and drive the publish step.
  */
 export async function getUnpublishedGlobalVariables(): Promise<GlobalVariable[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -254,7 +254,7 @@ export async function getUnpublishedGlobalVariablesCount(): Promise<number> {
  * affected (upserts + deletions).
  */
 export async function publishGlobalVariables(): Promise<{ count: number; changedIds: string[] }> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -343,7 +343,7 @@ export async function publishGlobalVariables(): Promise<{ count: number; changed
  * counterparts). Called after publish to reclaim rows.
  */
 export async function hardDeleteSoftDeletedGlobalVariables(): Promise<{ count: number }> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');

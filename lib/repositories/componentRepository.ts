@@ -6,7 +6,7 @@
  * Supports draft/published workflow with content hash-based change detection
  */
 
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import {
   displayChangeName,
   sortUnpublishedChanges,
@@ -42,7 +42,7 @@ function defaultVariantsFromLayers(layers: Layer[]): ComponentVariant[] {
  * Get all components (draft by default, excludes soft deleted)
  */
 export async function getAllComponents(isPublished: boolean = false): Promise<Component[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -65,7 +65,7 @@ export async function getAllComponents(isPublished: boolean = false): Promise<Co
  * Map of draft component id → name, without loading layer trees.
  */
 export async function getComponentNames(): Promise<Map<string, string>> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -88,7 +88,7 @@ export async function getComponentNames(): Promise<Map<string, string>> {
  * With composite primary key, we need to specify is_published to get a single row
  */
 export async function getComponentById(id: string, isPublished: boolean = false): Promise<Component | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -119,7 +119,7 @@ export async function getComponentsByIds(
   ids: string[],
   isPublished: boolean = false
 ): Promise<Record<string, Component>> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -154,7 +154,7 @@ export async function getComponentsByIds(
 export async function createComponent(
   componentData: CreateComponentData
 ): Promise<Component> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -214,7 +214,7 @@ export async function updateComponent(
   id: string,
   updates: Partial<Pick<Component, 'name' | 'layers' | 'variables' | 'variants'>>
 ): Promise<Component> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -299,7 +299,7 @@ export async function updateComponent(
  * Used to find the published version of a draft component
  */
 export async function getPublishedComponentById(id: string): Promise<Component | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -327,7 +327,7 @@ export async function getPublishedComponentById(id: string): Promise<Component |
  * Uses composite primary key (id, is_published) - same ID for draft and published versions
  */
 export async function publishComponent(draftComponentId: string): Promise<Component> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -373,7 +373,7 @@ export async function publishComponents(componentIds: string[]): Promise<{ count
     return { count: 0, changedComponentIds: [] };
   }
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -450,7 +450,7 @@ export async function publishComponents(componentIds: string[]): Promise<{ count
  * - Its draft content_hash differs from published content_hash (needs republishing)
  */
 export async function getUnpublishedComponents(): Promise<Component[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -514,7 +514,7 @@ export async function getUnpublishedComponents(): Promise<Component[]> {
  * Selects only id/name/hash — not layer trees.
  */
 export async function getUnpublishedComponentChanges(): Promise<UnpublishedChange[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -576,7 +576,7 @@ export async function getUnpublishedComponentChanges(): Promise<UnpublishedChang
  * Hard-delete soft-deleted draft components and their published counterparts.
  */
 export async function hardDeleteSoftDeletedComponents(): Promise<{ count: number }> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -653,7 +653,7 @@ export interface SoftDeleteResult {
  * Find all pages and components that use a specific component
  */
 export async function findEntitiesUsingComponent(componentId: string): Promise<AffectedEntity[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -746,7 +746,7 @@ function layersContainComponent(layers: Layer[], componentId: string): boolean {
  * Returns the deleted component and affected entities for undo/redo
  */
 export async function softDeleteComponent(id: string): Promise<SoftDeleteResult> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -842,7 +842,7 @@ export async function softDeleteComponent(id: string): Promise<SoftDeleteResult>
  * Restore a soft-deleted component
  */
 export async function restoreComponent(id: string): Promise<Component> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -866,7 +866,7 @@ export async function restoreComponent(id: string): Promise<Component> {
  * Hard delete a component (permanent, use with caution)
  */
 export async function deleteComponent(id: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -885,7 +885,7 @@ export async function deleteComponent(id: string): Promise<void> {
  * Update a component's thumbnail URL (draft only)
  */
 export async function updateComponentThumbnail(id: string, thumbnailUrl: string | null): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }

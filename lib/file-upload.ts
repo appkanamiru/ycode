@@ -3,7 +3,8 @@
  * Creates Asset records in database for uploaded files
  */
 
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
+import { getSupabaseStorage } from '@/lib/supabase-storage';
 import { createAsset } from '@/lib/repositories/assetRepository';
 import { isAssetOfType } from './asset-utils';
 import { ASSET_CATEGORIES, STORAGE_BUCKET, generateStoragePath, getDisplayName } from '@/lib/asset-constants';
@@ -222,7 +223,7 @@ export async function uploadFile(
     }
 
     // For non-SVG files, proceed with storage upload
-    const supabase = await getSupabaseAdmin();
+    const supabase = await getDbClient();
 
     if (!supabase) {
       throw new Error('Supabase client not available');
@@ -263,7 +264,7 @@ export async function uploadFile(
       : file.name;
     const storagePath = generateStoragePath(effectiveFilename);
 
-    const { data, error } = await supabase.storage
+    const { data, error } = await (await getSupabaseStorage())
       .from(STORAGE_BUCKET)
       .upload(storagePath, fileToUpload, {
         cacheControl: '3600',
@@ -276,7 +277,7 @@ export async function uploadFile(
       return null;
     }
 
-    const { data: urlData } = supabase.storage
+    const { data: urlData } = (await getSupabaseStorage())
       .from(STORAGE_BUCKET)
       .getPublicUrl(data.path);
 
@@ -309,7 +310,7 @@ export async function uploadFile(
  */
 export async function deleteAsset(assetId: string): Promise<boolean> {
   try {
-    const supabase = await getSupabaseAdmin();
+    const supabase = await getDbClient();
 
     if (!supabase) {
       throw new Error('Supabase client not available');
@@ -326,7 +327,7 @@ export async function deleteAsset(assetId: string): Promise<boolean> {
       return false;
     }
 
-    const { error: storageError } = await supabase.storage
+    const { error: storageError } = await (await getSupabaseStorage())
       .from(STORAGE_BUCKET)
       .remove([asset.storage_path]);
 

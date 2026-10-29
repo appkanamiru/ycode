@@ -1,5 +1,6 @@
 import { getKnexClient, closeKnexClient, testKnexConnection } from '../knex-client';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
+import { getSupabaseStorage } from '@/lib/supabase-storage';
 import { STORAGE_BUCKET, STORAGE_FOLDERS } from '@/lib/asset-constants';
 import { migrations } from '../migrations-loader';
 import { guardKnexForMigrationReplay } from '@/lib/migration-replay-guard';
@@ -126,7 +127,7 @@ export async function getTemplate(id: string): Promise<TemplateDetails | null> {
  * @param knex - Knex transaction or client
  */
 async function copyTemplateAssetsToUserStorage(knex: ReturnType<typeof getKnexClient> extends Promise<infer T> ? T : never): Promise<void> {
-  const supabase = await getSupabaseAdmin();
+  const supabase = await getDbClient();
   if (!supabase) {
     console.warn('[copyTemplateAssets] Supabase not configured, skipping asset copy');
     return;
@@ -174,7 +175,7 @@ async function copyTemplateAssetsToUserStorage(knex: ReturnType<typeof getKnexCl
       const storagePath = `${STORAGE_FOLDERS.WEBSITE}/${timestamp}-${random}.${extension}`;
 
       // Upload to user's storage
-      const { data, error } = await supabase.storage
+      const { data, error } = await (await getSupabaseStorage())
         .from(STORAGE_BUCKET)
         .upload(storagePath, buffer, {
           contentType: asset.mime_type || 'application/octet-stream',
@@ -188,7 +189,7 @@ async function copyTemplateAssetsToUserStorage(knex: ReturnType<typeof getKnexCl
       }
 
       // Get new public URL
-      const { data: urlData } = supabase.storage
+      const { data: urlData } = (await getSupabaseStorage())
         .from(STORAGE_BUCKET)
         .getPublicUrl(data.path);
 
@@ -240,7 +241,7 @@ async function copyTemplateAssetsToUserStorage(knex: ReturnType<typeof getKnexCl
         const extension = font.kind || 'woff2';
         const storagePath = `${STORAGE_FOLDERS.WEBSITE}/fonts/${timestamp}-${random}.${extension}`;
 
-        const { data, error } = await supabase.storage
+        const { data, error } = await (await getSupabaseStorage())
           .from(STORAGE_BUCKET)
           .upload(storagePath, buffer, {
             contentType: extension === 'woff2' ? 'font/woff2' : 'font/ttf',
@@ -253,7 +254,7 @@ async function copyTemplateAssetsToUserStorage(knex: ReturnType<typeof getKnexCl
           continue;
         }
 
-        const { data: urlData } = supabase.storage
+        const { data: urlData } = (await getSupabaseStorage())
           .from(STORAGE_BUCKET)
           .getPublicUrl(data.path);
 

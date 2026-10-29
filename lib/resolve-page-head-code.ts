@@ -21,7 +21,7 @@ import { fetchErrorPage, fetchHomepage, fetchPageByPathForMetadata } from '@/lib
 import { parsePathnameForPageHead } from '@/lib/page-head-path';
 import { getDraftLayers, getPublishedLayers } from '@/lib/repositories/pageLayersRepository';
 import { resolveCustomCodePlaceholders } from '@/lib/resolve-cms-variables';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 
 import type { HreflangAlternate } from '@/lib/hreflang-utils';
 import type { CollectionField, CollectionItemWithValues, Page } from '@/types';
@@ -104,7 +104,7 @@ async function loadBodyClassesForErrorPage(
   isPublished: boolean,
   tenantId?: string,
 ): Promise<string> {
-  const client = await getSupabaseAdmin(tenantId);
+  const client = await getDbClient(tenantId);
   if (!client) {
     return '';
   }

@@ -20,7 +20,8 @@ import sharp from 'sharp';
 import { base62ToUuid } from '@/lib/convertion-utils';
 import { getAssetProxyUrl, getInlineSvgAssetUrl, isAssetOfType, withSvgIntrinsicSize, ASSET_CATEGORIES } from '@/lib/asset-utils';
 import { getAssetForProxy } from '@/lib/repositories/assetRepository';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
+import { getSupabaseStorage } from '@/lib/supabase-storage';
 import { STORAGE_BUCKET } from '@/lib/asset-constants';
 
 // Cache headers set at infrastructure level via next.config.ts headers()
@@ -111,12 +112,12 @@ export async function GET(
       return redirectToCanonical(canonicalPath);
     }
 
-    const supabase = await getSupabaseAdmin();
+    const supabase = await getDbClient();
     if (!supabase) {
       return new Response('Service unavailable', { status: 503 });
     }
 
-    const { data: urlData } = supabase.storage
+    const { data: urlData } = (await getSupabaseStorage())
       .from(STORAGE_BUCKET)
       .getPublicUrl(asset.storage_path);
 

@@ -4,7 +4,7 @@ import { unstable_cache } from 'next/cache';
 import { addCacheTag } from '@vercel/functions';
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { GLOBAL_SETTINGS_TAG } from '@/lib/cache-tags';
 import { buildSlugPath } from '@/lib/page-utils';
 import { generatePageMetadata, fetchGlobalPageSettings } from '@/lib/generate-page-metadata';
@@ -33,7 +33,7 @@ export const dynamicParams = true;
  */
 export async function generateStaticParams() {
   try {
-    const supabase = await getSupabaseAdmin();
+    const supabase = await getDbClient();
 
     if (!supabase) {
       return [{ slug: [] }];

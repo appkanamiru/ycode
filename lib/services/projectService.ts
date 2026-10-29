@@ -8,7 +8,8 @@ import { scryptSync, randomBytes, createCipheriv, createDecipheriv } from 'crypt
 import { gzipSync, gunzipSync } from 'zlib';
 import type { Knex } from 'knex';
 import { getKnexClient, closeKnexClient, testKnexConnection } from '../knex-client';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
+import { getSupabaseStorage } from '@/lib/supabase-storage';
 import { STORAGE_BUCKET, STORAGE_FOLDERS } from '@/lib/asset-constants';
 import { migrations } from '../migrations-loader';
 import { guardKnexForMigrationReplay } from '@/lib/migration-replay-guard';
@@ -643,7 +644,7 @@ export function generateStoragePath(originalPath: string): string {
 export async function collectAssetFiles(
   assetRows: Record<string, unknown>[]
 ): Promise<ExportFile[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) return [];
 
   const storagePaths = assetRows
@@ -655,7 +656,7 @@ export async function collectAssetFiles(
 
   return processInParallel(uniquePaths, async (storagePath): Promise<ExportFile | null> => {
     try {
-      const { data, error } = await client.storage
+      const { data, error } = await (await getSupabaseStorage())
         .from(STORAGE_BUCKET)
         .download(storagePath);
 
@@ -682,7 +683,7 @@ export async function restoreAssetFiles(
   files: ExportFile[],
   db: Knex
 ): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client || files.length === 0) return;
 
   const pathUpdates = await processInParallel(files, async (file): Promise<{ oldPath: string; newPath: string; publicUrl: string } | null> => {
@@ -690,7 +691,7 @@ export async function restoreAssetFiles(
       const buffer = Buffer.from(file.base64, 'base64');
       const newPath = generateStoragePath(file.storagePath);
 
-      const { data, error } = await client.storage
+      const { data, error } = await (await getSupabaseStorage())
         .from(STORAGE_BUCKET)
         .upload(newPath, buffer, {
           contentType: file.mimeType,
@@ -703,7 +704,7 @@ export async function restoreAssetFiles(
         return null;
       }
 
-      const { data: urlData } = client.storage
+      const { data: urlData } = (await getSupabaseStorage())
         .from(STORAGE_BUCKET)
         .getPublicUrl(data.path);
 

@@ -4,7 +4,7 @@
  * Data access layer for asset folder operations with Supabase
  */
 
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { SUPABASE_QUERY_LIMIT, SUPABASE_WRITE_BATCH_SIZE } from '@/lib/supabase-constants';
 import type { AssetFolder, CreateAssetFolderData, UpdateAssetFolderData } from '../../types';
 
@@ -13,7 +13,7 @@ import type { AssetFolder, CreateAssetFolderData, UpdateAssetFolderData } from '
  * @param isPublished - Filter by published status (default: false for drafts)
  */
 export async function getAllAssetFolders(isPublished = false): Promise<AssetFolder[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -39,7 +39,7 @@ export async function getAllAssetFolders(isPublished = false): Promise<AssetFold
  * @param isPublished - Get published or draft version (default: false for draft)
  */
 export async function getAssetFolderById(id: string, isPublished = false): Promise<AssetFolder | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -72,7 +72,7 @@ export async function getChildFolders(
   parentId: string | null,
   isPublished = false
 ): Promise<AssetFolder[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -102,7 +102,7 @@ export async function getChildFolders(
  * Create new asset folder
  */
 export async function createAssetFolder(folderData: CreateAssetFolderData): Promise<AssetFolder> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -131,7 +131,7 @@ export async function createAssetFolder(folderData: CreateAssetFolderData): Prom
  * Update asset folder (drafts only)
  */
 export async function updateAssetFolder(id: string, updates: UpdateAssetFolderData): Promise<AssetFolder> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -159,7 +159,7 @@ export async function updateAssetFolder(id: string, updates: UpdateAssetFolderDa
  * Get all descendant folder IDs recursively (drafts only)
  */
 async function getDescendantFolderIds(folderId: string): Promise<string[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -209,7 +209,7 @@ async function getDescendantFolderIds(folderId: string): Promise<string[]> {
  * Soft delete an asset folder and all its nested assets and folders (drafts only)
  */
 export async function deleteAssetFolder(id: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -282,7 +282,7 @@ export async function reorderFolders(updates: Array<{ id: string; order: number 
  * A folder needs publishing if no published version exists or its data differs.
  */
 export async function getUnpublishedAssetFolders(): Promise<AssetFolder[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -334,7 +334,7 @@ export async function getUnpublishedAssetFolders(): Promise<AssetFolder[]> {
  * Get soft-deleted draft asset folders
  */
 export async function getDeletedDraftAssetFolders(): Promise<AssetFolder[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -384,7 +384,7 @@ export async function publishAssetFolders(folderIds: string[]): Promise<{ count:
     return { count: 0 };
   }
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -481,7 +481,7 @@ export async function publishAssetFolders(folderIds: string[]): Promise<{ count:
  * Hard delete asset folders that were soft-deleted in drafts
  */
 export async function hardDeleteSoftDeletedAssetFolders(): Promise<{ count: number }> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
