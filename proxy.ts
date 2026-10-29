@@ -208,7 +208,8 @@ export async function proxy(request: NextRequest) {
   if (isPlatformAuth()) {
     const routing = await resolvePlatformRequest(request, {
       protectedRoute: isAuthRoute && !isPublicApiRoute(pathname, request.method, request.nextUrl.searchParams),
-      builderPage: pathname.startsWith('/ycode') && !isAuthRoute,
+      // Stored files are public and carry their tenant in the path
+      builderPage: pathname.startsWith('/ycode') && !isAuthRoute && !pathname.startsWith('/ycode/storage/'),
       publicPage: (isPublicPage && !isSiteFileRoute) || pathname.startsWith('/dynamic'),
     });
     if (routing.response) return routing.response;
