@@ -3,6 +3,7 @@ import { fetchCachedErrorPage } from '@/lib/published-page-cache';
 import { fetchGlobalPageSettings } from '@/lib/generate-page-metadata';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
 import { getTenantIdFromHeaders } from '@/lib/supabase-server';
+import { isMultiTenant } from '@/lib/database/tenancy';
 import PageRenderer from '@/components/PageRenderer';
 import YcodeBadge from '@/components/YcodeBadge';
 
@@ -14,7 +15,11 @@ import YcodeBadge from '@/components/YcodeBadge';
 export default async function NotFound() {
   const tenantId = (await getTenantIdFromHeaders()) ?? undefined;
 
-  const errorPageData = await fetchCachedErrorPage(404, tenantId).catch(() => null);
+  // Multi-tenant without a site (e.g. the editor's own 404s): there is no site
+  // 404 page to show, and a tenant-less cache entry must never be used
+  const errorPageData = isMultiTenant() && !tenantId
+    ? null
+    : await fetchCachedErrorPage(404, tenantId).catch(() => null);
 
   if (errorPageData) {
     const globalSettings = await fetchGlobalPageSettings().catch(() => null);
