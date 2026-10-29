@@ -44,6 +44,7 @@ import SaveLayoutDialog from './SaveLayoutDialog';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
+import { getInlinedComponentName } from '@/lib/templates/inlined-components';
 import { useEditorActions } from '@/hooks/use-editor-url';
 import { useLocalizationMode } from '@/hooks/use-localization-mode';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
@@ -181,7 +182,8 @@ function hasInlinedComponents(layer: Layer): boolean {
 async function restoreInlinedComponents(
   layer: Layer,
   existingComponents: { id: string; name: string }[],
-  createdComponents: Map<string, string> // name -> componentId
+  createdComponents: Map<string, string>, // name -> componentId
+  layoutKey: string
 ): Promise<Layer> {
   const newLayer = { ...layer } as Layer & {
     _inlinedComponentName?: string;
@@ -190,7 +192,8 @@ async function restoreInlinedComponents(
 
   // Check if this layer has inlined component data
   if (newLayer._inlinedComponentName && newLayer.children?.length) {
-    const componentName = newLayer._inlinedComponentName;
+    // Unique per distinct component across layouts (e.g. "Navigation 2")
+    const componentName = getInlinedComponentName(layoutKey, newLayer._inlinedComponentName);
     const componentVariables = newLayer._inlinedComponentVariables;
 
     // Check if we already created this component in this batch
@@ -267,7 +270,7 @@ async function restoreInlinedComponents(
   if (newLayer.children?.length && !newLayer.componentId) {
     const processedChildren: Layer[] = [];
     for (const child of newLayer.children) {
-      const processed = await restoreInlinedComponents(child, existingComponents, createdComponents);
+      const processed = await restoreInlinedComponents(child, existingComponents, createdComponents, layoutKey);
       processedChildren.push(processed);
     }
     newLayer.children = processedChildren;
@@ -774,7 +777,8 @@ export default function ElementLibrary({ isOpen, onClose, liveLayerUpdates }: El
         newLayer = await restoreInlinedComponents(
           newLayer,
           components.map(c => ({ id: c.id, name: c.name })),
-          createdComponents
+          createdComponents,
+          layoutKey
         );
 
         // Refresh components store if new components were created
@@ -964,7 +968,8 @@ export default function ElementLibrary({ isOpen, onClose, liveLayerUpdates }: El
       newLayer = await restoreInlinedComponents(
         newLayer,
         components.map(c => ({ id: c.id, name: c.name })),
-        createdComponents
+        createdComponents,
+        layoutKey
       );
 
       // Refresh components store if new components were created
