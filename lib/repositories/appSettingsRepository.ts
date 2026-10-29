@@ -65,9 +65,9 @@ export async function getAppSetting(
     .select('*')
     .eq('app_id', appId)
     .eq('key', key)
-    .single();
+    .maybeSingle();
 
-  if (error && error.code !== 'PGRST116') {
+  if (error) {
     throw new Error(`Failed to fetch app setting: ${error.message}`);
   }
 
