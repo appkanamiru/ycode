@@ -7,6 +7,7 @@ import { findHomepage } from '@/lib/page-utils';
 import { getTranslationValue } from '@/lib/localisation-utils';
 import { Button } from '@/components/ui/button';
 import PlatformSiteMenu from '@/components/platform/PlatformSiteMenu';
+import { usePlatformSiteUrl } from '@/hooks/use-platform-site-url';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -164,10 +165,12 @@ export default function HeaderBar({
   const [hasUpdate, setHasUpdate] = useState(false);
   const [showTransferDialog, setShowTransferDialog] = useState(false);
 
-  // Get current host after mount
+  // Published site address: the active site's own address on the
+  // multi-tenant platform, otherwise this host
+  const platformSiteUrl = usePlatformSiteUrl();
   useEffect(() => {
-    setBaseUrl(window.location.protocol + '//' + window.location.host);
-  }, []);
+    setBaseUrl(platformSiteUrl ?? window.location.protocol + '//' + window.location.host);
+  }, [platformSiteUrl]);
 
   // Check for updates on mount
   useEffect(() => {
