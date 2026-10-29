@@ -23,6 +23,7 @@ import { getAssetForProxy } from '@/lib/repositories/assetRepository';
 import { getDbClient } from '@/lib/database/pg-client';
 import { getSupabaseStorage } from '@/lib/supabase-storage';
 import { STORAGE_BUCKET } from '@/lib/asset-constants';
+import { fetchStoredFile } from '@/lib/storage/filesystem-storage';
 
 // Cache headers set at infrastructure level via next.config.ts headers()
 // to prevent Next.js proxy from overriding them
@@ -132,7 +133,7 @@ export async function GET(
       upstreamHeaders.Range = rangeHeader;
     }
 
-    const response = await fetch(urlData.publicUrl, { headers: upstreamHeaders });
+    const response = await fetchStoredFile(urlData.publicUrl, { headers: upstreamHeaders });
     if (!response.ok && response.status !== 206) {
       return new Response('Not found', { status: 404 });
     }

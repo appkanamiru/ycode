@@ -16,6 +16,7 @@
 
 import fs from 'fs/promises'
 import path from 'path'
+import { fetchStoredFile } from '@/lib/storage/filesystem-storage'
 
 import { withSvgIntrinsicSize } from '@/lib/asset-utils'
 import { base62ToUuid } from '@/lib/convertion-utils'
@@ -128,7 +129,7 @@ async function fetchAssetByProxyUrl(
   }
 
   try {
-    const response = await fetch(asset.public_url)
+    const response = await fetchStoredFile(asset.public_url)
     if (!response.ok) {
       console.warn(`[Static Export] HTTP ${response.status} fetching ${asset.filename}`)
       return null

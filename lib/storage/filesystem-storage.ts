@@ -14,8 +14,9 @@
  */
 
 import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
-import { promises as fs } from 'fs';
+import { createReadStream, promises as fs } from 'fs';
 import path from 'path';
+import { Readable } from 'stream';
 
 const SIGNED_UPLOAD_TTL_MS = 2 * 60 * 60 * 1000;
 const SAFE_SEGMENT = /^[^/\\\0]+$/;
@@ -37,7 +38,8 @@ function failure(message: string, statusCode: string): { data: null; error: Stor
 }
 
 export function getStorageRoot(): string {
-  return path.resolve(process.env.STORAGE_DIR || path.join(process.cwd(), 'data', 'uploads'));
+  // Runtime data, not part of the build: keep it out of output file tracing
+  return path.resolve(/*turbopackIgnore: true*/ process.env.STORAGE_DIR || path.join(process.cwd(), 'data', 'uploads'));
 }
 
 function getPublicBaseUrl(): string {
@@ -233,4 +235,74 @@ export function createFilesystemStorage(tenantId: string | null): FilesystemStor
       return new FilesystemBucket(bucket, tenantId);
     },
   };
+}
+
+const SERVE_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  // User uploads (SVG, HTML) are served from the builder origin: never let
+  // them run scripts there if opened as a document
+  'Content-Security-Policy': "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox",
+  // Fonts and media are loaded by published sites on other domains
+  'Access-Control-Allow-Origin': '*',
+};
+
+function parseRange(header: string | null, size: number): { start: number; end: number } | null {
+  const match = header?.match(/^bytes=(\d*)-(\d*)$/);
+  if (!match || (!match[1] && !match[2])) return null;
+
+  const start = match[1] ? Number(match[1]) : Math.max(size - Number(match[2]), 0);
+  const end = match[1] && match[2] ? Math.min(Number(match[2]), size - 1) : size - 1;
+  return start <= end && start < size ? { start, end } : null;
+}
+
+/** A stored file as an HTTP response, with Range support (206) for media */
+export async function serveObject(segments: string[], rangeHeader: string | null, includeBody = true): Promise<Response> {
+  const filePath = objectFilePath(segments);
+  const stat = await fs.stat(filePath).catch(() => null);
+  if (!stat?.isFile()) return new Response('Not found', { status: 404 });
+
+  const meta = await readObjectMeta(segments);
+  const headers: Record<string, string> = {
+    ...SERVE_HEADERS,
+    'Content-Type': meta.contentType,
+    'Cache-Control': `public, max-age=${Number(meta.cacheControl) || 3600}`,
+    'Accept-Ranges': 'bytes',
+  };
+
+  const range = parseRange(rangeHeader, stat.size);
+  if (rangeHeader && !range) {
+    return new Response(null, { status: 416, headers: { ...headers, 'Content-Range': `bytes */${stat.size}` } });
+  }
+
+  const { start, end } = range ?? { start: 0, end: stat.size - 1 };
+  headers['Content-Length'] = String(stat.size === 0 ? 0 : end - start + 1);
+  if (range) headers['Content-Range'] = `bytes ${start}-${end}/${stat.size}`;
+
+  const body = includeBody && stat.size > 0
+    ? Readable.toWeb(createReadStream(filePath, { start, end })) as ReadableStream
+    : null;
+  return new Response(body, { status: range ? 206 : 200, headers });
+}
+
+/** The object key of a filesystem-storage public URL, or null for other URLs */
+function objectKeyFromPublicUrl(url: string): string | null {
+  const base = process.env.STORAGE_PUBLIC_URL || process.env.BETTER_AUTH_URL;
+  if (!base) return null;
+  const prefix = `${base.replace(/\/+$/, '')}/ycode/storage/`;
+  if (!url.startsWith(prefix)) return null;
+  return url.slice(prefix.length).split(/[?#]/)[0].split('/').map((segment) => decodeURIComponent(segment)).join('/');
+}
+
+/**
+ * fetch() for stored files. Files in filesystem storage are read from disk
+ * instead of going out through their public URL, which the server may not
+ * be able to reach from inside (containers, NAT); other URLs are fetched.
+ */
+export async function fetchStoredFile(url: string, init?: RequestInit): Promise<Response> {
+  const key = objectKeyFromPublicUrl(url);
+  if (key === null) return fetch(url, init);
+
+  const segments = parseObjectKey(key);
+  if (!segments) return new Response('Not found', { status: 404 });
+  return serveObject(segments, new Headers(init?.headers).get('range'));
 }

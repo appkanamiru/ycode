@@ -6,6 +6,7 @@ import { migrations } from '../migrations-loader';
 import { guardKnexForMigrationReplay } from '@/lib/migration-replay-guard';
 import { YCODE_EXTERNAL_API_URL } from '@/lib/config';
 import { multiTenantRestriction } from '@/lib/database/tenancy';
+import { fetchStoredFile } from '@/lib/storage/filesystem-storage';
 
 /**
  * Tables to truncate when applying a template.
@@ -152,7 +153,7 @@ async function copyTemplateAssetsToUserStorage(knex: ReturnType<typeof getKnexCl
 
       let response: Response;
       try {
-        response = await fetch(asset.public_url, { signal: controller.signal });
+        response = await fetchStoredFile(asset.public_url, { signal: controller.signal });
       } catch (fetchErr) {
         clearTimeout(timeout);
         console.warn(`[copyTemplateAssets] Failed to fetch ${asset.filename}:`, fetchErr);

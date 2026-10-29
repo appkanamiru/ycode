@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, before, test } from 'node:test';
 
-import { createFilesystemStorage, parseObjectKey, verifyUploadToken } from './filesystem-storage';
+import { createFilesystemStorage, fetchStoredFile, parseObjectKey, verifyUploadToken } from './filesystem-storage';
 
 const TENANT_A = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const TENANT_B = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
@@ -93,4 +93,22 @@ test('signed upload tokens are bound to the key and expire', async () => {
   assert.equal(verifyUploadToken(key, `${token}x`), false, 'tampered');
   assert.equal(verifyUploadToken(key, `${Date.now() - 1}.${token!.split('.')[1]}`), false, 'expired');
   assert.equal(verifyUploadToken(key, null), false);
+});
+
+test('stored files are read from disk, not fetched through their public URL', async () => {
+  const bucket = createFilesystemStorage(TENANT_A).from('assets');
+  await bucket.upload('video.mp4', Buffer.from('0123456789'), { contentType: 'video/mp4' });
+  const { publicUrl } = bucket.getPublicUrl('video.mp4').data;
+
+  const full = await fetchStoredFile(publicUrl);
+  assert.equal(full.status, 200);
+  assert.equal(full.headers.get('content-type'), 'video/mp4');
+  assert.equal(await full.text(), '0123456789');
+
+  const partial = await fetchStoredFile(publicUrl, { headers: { Range: 'bytes=2-4' } });
+  assert.equal(partial.status, 206);
+  assert.equal(partial.headers.get('content-range'), 'bytes 2-4/10');
+  assert.equal(await partial.text(), '234');
+
+  assert.equal((await fetchStoredFile(`${publicUrl}x`)).status, 404);
 });

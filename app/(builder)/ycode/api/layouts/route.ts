@@ -8,6 +8,7 @@ import { getComponentsByIds } from '@/lib/repositories/componentRepository';
 import { getDraftLayers, upsertDraftLayers } from '@/lib/repositories/pageLayersRepository';
 import type { Asset, Layer } from '@/types';
 import { collectComponentIds } from '@/lib/component-utils';
+import { fetchStoredFile } from '@/lib/storage/filesystem-storage';
 
 const LAYOUTS_FILE_PATH = path.join(process.cwd(), 'lib', 'templates', 'layouts.ts');
 const LAYOUT_ASSETS_DIR = path.join(process.cwd(), 'public', 'ycode', 'layouts', 'assets');
@@ -183,7 +184,7 @@ async function downloadAndLocalizeAssets(
     if (!asset?.public_url) continue;
 
     try {
-      const response = await fetch(asset.public_url);
+      const response = await fetchStoredFile(asset.public_url);
       if (!response.ok) continue;
 
       const sourceBuffer = Buffer.from(await response.arrayBuffer());
