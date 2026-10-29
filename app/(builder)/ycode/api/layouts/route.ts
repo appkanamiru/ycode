@@ -9,6 +9,7 @@ import { getDraftLayers, upsertDraftLayers } from '@/lib/repositories/pageLayers
 import type { Asset, Layer } from '@/types';
 import { collectComponentIds } from '@/lib/component-utils';
 import { fetchStoredFile } from '@/lib/storage/filesystem-storage';
+import { multiTenantRestriction } from '@/lib/database/tenancy';
 
 const LAYOUTS_FILE_PATH = path.join(process.cwd(), 'lib', 'templates', 'layouts.ts');
 const LAYOUT_ASSETS_DIR = path.join(process.cwd(), 'public', 'ycode', 'layouts', 'assets');
@@ -287,6 +288,12 @@ function localizeMediaAssets(
 }
 
 export async function POST(request: NextRequest) {
+  // The layout library is part of the app, shared by every site
+  const restriction = multiTenantRestriction('Editing the layout library');
+  if (restriction) {
+    return NextResponse.json({ error: restriction }, { status: 403 });
+  }
+
   try {
     const formData = await request.formData();
 

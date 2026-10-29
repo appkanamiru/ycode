@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { multiTenantRestriction } from '@/lib/database/tenancy';
 
 const LAYOUTS_FILE_PATH = path.join(process.cwd(), 'lib', 'templates', 'layouts.ts');
 
@@ -8,6 +9,12 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ layoutKey: string }> }
 ) {
+  // The layout library is part of the app, shared by every site
+  const restriction = multiTenantRestriction('Editing the layout library');
+  if (restriction) {
+    return NextResponse.json({ error: restriction }, { status: 403 });
+  }
+
   try {
     const { layoutKey } = await params;
     const { newLayoutKey, newLayoutName, category } = await request.json();
@@ -120,6 +127,12 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ layoutKey: string }> }
 ) {
+  // The layout library is part of the app, shared by every site
+  const restriction = multiTenantRestriction('Editing the layout library');
+  if (restriction) {
+    return NextResponse.json({ error: restriction }, { status: 403 });
+  }
+
   try {
     const { layoutKey } = await params;
 
