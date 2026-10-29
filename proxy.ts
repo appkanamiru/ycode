@@ -111,8 +111,16 @@ async function verifyApiAuth(request: NextRequest): Promise<NextResponse | null>
 
   const config = getSupabaseEnvConfig();
 
-  // If env vars aren't set (pre-setup or local dev without .env.local), let through
-  if (!config) return null;
+  if (!config) {
+    // Plain Postgres never has Supabase auth configured, so fail closed instead
+    // of exposing the builder API; YCODE_DISABLE_AUTH is for local development only
+    if (process.env.YCODE_DB_DRIVER === 'postgres' && process.env.YCODE_DISABLE_AUTH !== 'true') {
+      return NextResponse.json({ error: 'Authentication is not configured' }, { status: 401 });
+    }
+
+    // If env vars aren't set (pre-setup or local dev without .env.local), let through
+    return null;
+  }
 
   let response = NextResponse.next({ request });
 
