@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { fetchCachedErrorPage } from '@/lib/published-page-cache';
 import { fetchGlobalPageSettings } from '@/lib/generate-page-metadata';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
-import { tenantStore } from '@/lib/supabase-server';
+import { getTenantIdFromHeaders } from '@/lib/supabase-server';
 import PageRenderer from '@/components/PageRenderer';
 import YcodeBadge from '@/components/YcodeBadge';
 
@@ -12,7 +12,7 @@ import YcodeBadge from '@/components/YcodeBadge';
  * 404 status, which avoids soft-404 SEO penalties from search engines.
  */
 export default async function NotFound() {
-  const tenantId = tenantStore.getStore();
+  const tenantId = (await getTenantIdFromHeaders()) ?? undefined;
 
   const errorPageData = await fetchCachedErrorPage(404, tenantId).catch(() => null);
 

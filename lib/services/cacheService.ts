@@ -1,7 +1,7 @@
 import { revalidateTag, revalidatePath } from 'next/cache';
 import { invalidateByTag } from '@vercel/functions';
-import { GLOBAL_SETTINGS_TAG } from '@/lib/cache-tags';
-import { getSupabaseConfig } from '@/lib/supabase-server';
+import { buildAllPagesTag, buildGlobalSettingsTag, buildRouteTag } from '@/lib/cache-tags';
+import { getSupabaseConfig, getTenantIdFromHeaders } from '@/lib/supabase-server';
 import { getDbClient } from '@/lib/database/pg-client';
 import { buildSlugPath, normalizeSlugSegment } from '@/lib/page-utils';
 import type { Page, PageFolder } from '@/types';
@@ -91,7 +91,7 @@ export async function purgeTagsOnVercel(tags: string[]): Promise<void> {
  * @param routePath - Route path (without leading slash for tag, with for path)
  */
 export async function invalidatePage(routePath: string): Promise<boolean> {
-  const tag = `route-/${routePath}`;
+  const tag = buildRouteTag(await getTenantIdFromHeaders(), routePath);
   try {
     if (process.env.VERCEL === '1') {
       await invalidateByTag(tag);
@@ -114,7 +114,8 @@ export async function invalidatePage(routePath: string): Promise<boolean> {
 export async function invalidatePages(routePaths: string[]): Promise<boolean> {
   if (routePaths.length === 0) return true;
   try {
-    const tags = routePaths.map((p) => `route-/${p}`);
+    const tenantId = await getTenantIdFromHeaders();
+    const tags = routePaths.map((p) => buildRouteTag(tenantId, p));
     if (process.env.VERCEL === '1') {
       // Chunked to respect Vercel's 16-tags-per-purge cap — without this,
       // routes beyond the first 16 (common when a dynamic CMS page expands to
@@ -138,15 +139,20 @@ export async function invalidatePages(routePaths: string[]): Promise<boolean> {
  */
 export async function clearAllCache(): Promise<void> {
   try {
+    // 'all-pages', or the tenant's own tag in multi-tenant mode
+    const tenantId = await getTenantIdFromHeaders();
+    const tag = buildAllPagesTag(tenantId);
+
     if (process.env.VERCEL === '1') {
       // Vercel: direct CDN purge by the 'all-pages' tag set on every page
       // response. Covers CDN, Runtime, and Data caches in one call. Avoids
       // revalidateTag's cascade bug (#63509).
-      await invalidateByTag('all-pages');
+      await invalidateByTag(tag);
     } else {
       // Self-hosted: clear Next.js's in-process caches.
-      revalidateTag('all-pages', { expire: 0 });
-      revalidatePath('/', 'layout');
+      revalidateTag(tag, { expire: 0 });
+      // The route cache is shared by all tenants; their pages render dynamically
+      if (!tenantId) revalidatePath('/', 'layout');
     }
   } catch (error) {
     console.error('❌ [Cache] Clear all error:', error);
@@ -583,10 +589,11 @@ export async function selectiveInvalidation(
  */
 export async function invalidateGlobalSettings(): Promise<boolean> {
   try {
+    const tag = buildGlobalSettingsTag(await getTenantIdFromHeaders());
     if (process.env.VERCEL === '1') {
-      await invalidateByTag(GLOBAL_SETTINGS_TAG);
+      await invalidateByTag(tag);
     } else {
-      revalidateTag(GLOBAL_SETTINGS_TAG, { expire: 0 });
+      revalidateTag(tag, { expire: 0 });
     }
     return true;
   } catch (error) {
