@@ -197,13 +197,19 @@ export async function proxy(request: NextRequest) {
     && !pathname.startsWith('/api')
     && !pathname.startsWith('/dynamic');
 
+  // Route handlers served on site domains that are not pages (assets, SEO
+  // files, well-known endpoints such as the OAuth discovery for MCP clients)
+  const isSiteFileRoute = pathname.startsWith('/a/')
+    || pathname.startsWith('/.well-known/')
+    || ['/robots.txt', '/sitemap.xml', '/llms.txt'].includes(pathname);
+
   // Plain Postgres: platform sessions instead of Supabase Auth, plus tenant resolution
   let tenantId: string | null = null;
   if (isPlatformAuth()) {
     const routing = await resolvePlatformRequest(request, {
       protectedRoute: isAuthRoute && !isPublicApiRoute(pathname, request.method, request.nextUrl.searchParams),
       builderPage: pathname.startsWith('/ycode') && !isAuthRoute,
-      publicPage: isPublicPage || pathname.startsWith('/dynamic'),
+      publicPage: (isPublicPage && !isSiteFileRoute) || pathname.startsWith('/dynamic'),
     });
     if (routing.response) return routing.response;
     tenantId = routing.tenantId;
@@ -227,7 +233,7 @@ export async function proxy(request: NextRequest) {
   // Multi-tenant: the static route cache is keyed by path only, which would mix
   // sites, so every page renders through the dynamic route (data caches stay
   // keyed per tenant)
-  if (isPublicPage && (hasPaginationParams || tenantId)) {
+  if (isPublicPage && !isSiteFileRoute && (hasPaginationParams || tenantId)) {
     const rewriteUrl = request.nextUrl.clone();
     rewriteUrl.pathname = pathname === '/' ? '/dynamic' : `/dynamic${pathname}`;
 
