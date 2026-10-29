@@ -24,8 +24,11 @@ import { TENANT_COLUMN } from './pg-client/schema-introspector';
 /** Owns rows seeded by migrations; a template for provisioning new tenants */
 export const TEMPLATE_TENANT_ID = '00000000-0000-0000-0000-000000000000';
 
-/** Tables shared by all tenants */
-export const GLOBAL_TABLES = new Set(['migrations', 'migrations_lock']);
+/**
+ * Tables shared by all tenants. MCP OAuth clients register anonymously against
+ * the one MCP endpoint all sites share; the tokens they get are per tenant.
+ */
+export const GLOBAL_TABLES = new Set(['migrations', 'migrations_lock', 'mcp_oauth_clients']);
 
 const MAX_IDENTIFIER_LENGTH = 63;
 

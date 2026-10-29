@@ -4,6 +4,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { validateToken } from '@/lib/repositories/mcpTokenRepository';
 import { createMcpServer, type CreateMcpServerOptions } from '@/lib/mcp/server';
 import { getCachedToken, setCachedToken } from '@/lib/mcp/token-cache';
+import { getTenantIdFromHeaders } from '@/lib/supabase-server';
 
 /**
  * Shared MCP HTTP handler used by both the URL-token endpoint
@@ -19,11 +20,23 @@ interface McpSession {
   transport: WebStandardStreamableHTTPServerTransport;
   server: McpServer;
   lastActivity: number;
+  /** Tenant the session was opened for (null on single-tenant installs) */
+  tenantId: string | null;
 }
 
 const sessions = new Map<string, McpSession>();
 
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
+
+/**
+ * A session is only usable by requests of the tenant that opened it, so a
+ * session id cannot be replayed with another tenant's token.
+ */
+async function findSession(sessionId: string | null): Promise<McpSession | undefined> {
+  const session = sessionId ? sessions.get(sessionId) : undefined;
+  if (!session) return undefined;
+  return session.tenantId === await getTenantIdFromHeaders() ? session : undefined;
+}
 
 function cleanupStaleSessions() {
   const now = Date.now();
@@ -73,13 +86,13 @@ export function addCorsHeaders(response: Response): Response {
   });
 }
 
-function createSessionTransport(options?: CreateMcpServerOptions) {
+function createSessionTransport(tenantId: string | null, options?: CreateMcpServerOptions) {
   const server = createMcpServer(options);
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: () => randomUUID(),
     enableJsonResponse: true,
     onsessioninitialized: (newSessionId) => {
-      sessions.set(newSessionId, { transport, server, lastActivity: Date.now() });
+      sessions.set(newSessionId, { transport, server, lastActivity: Date.now(), tenantId });
     },
   });
 
@@ -159,18 +172,17 @@ function ensureAcceptHeader(request: Request): Request {
 
 async function handlePost(request: Request, options?: CreateMcpServerOptions): Promise<Response> {
   const normalized = ensureAcceptHeader(request);
-  const sessionId = normalized.headers.get('mcp-session-id');
+  const existing = await findSession(normalized.headers.get('mcp-session-id'));
 
-  if (sessionId && sessions.has(sessionId)) {
-    const session = sessions.get(sessionId)!;
-    session.lastActivity = Date.now();
-    return session.transport.handleRequest(normalized);
+  if (existing) {
+    existing.lastActivity = Date.now();
+    return existing.transport.handleRequest(normalized);
   }
 
   const body = await normalized.json();
   const isInit = !Array.isArray(body) && body.method === 'initialize';
 
-  const { server, transport } = createSessionTransport(options);
+  const { server, transport } = createSessionTransport(await getTenantIdFromHeaders(), options);
   await server.connect(transport);
 
   if (isInit) {
@@ -219,8 +231,8 @@ export async function handleMcpPost(request: Request, options?: CreateMcpServerO
 
 export async function handleMcpGet(request: Request): Promise<Response> {
   try {
-    const sessionId = request.headers.get('mcp-session-id');
-    if (!sessionId || !sessions.has(sessionId)) {
+    const session = await findSession(request.headers.get('mcp-session-id'));
+    if (!session) {
       return addCorsHeaders(new Response(JSON.stringify({
         jsonrpc: '2.0',
         error: { code: -32000, message: 'Session not found. Send a POST initialize first.' },
@@ -231,7 +243,6 @@ export async function handleMcpGet(request: Request): Promise<Response> {
       }));
     }
 
-    const session = sessions.get(sessionId)!;
     session.lastActivity = Date.now();
     const response = await session.transport.handleRequest(request);
     return addCorsHeaders(response);
@@ -251,8 +262,8 @@ export async function handleMcpGet(request: Request): Promise<Response> {
 export async function handleMcpDelete(request: Request): Promise<Response> {
   try {
     const sessionId = request.headers.get('mcp-session-id');
-    if (sessionId && sessions.has(sessionId)) {
-      const session = sessions.get(sessionId)!;
+    const session = await findSession(sessionId);
+    if (session && sessionId) {
       await session.transport.close();
       sessions.delete(sessionId);
     }

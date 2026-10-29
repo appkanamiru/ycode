@@ -8,6 +8,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { isMultiTenant } from '@/lib/database/tenancy';
+import { findTenantByMcpToken } from './mcp';
 import { normalizeHostname, resolveBuilderAccess, resolveTenantByHost } from './tenants';
 
 export interface PlatformRouting {
@@ -60,4 +61,19 @@ export async function resolvePlatformRequest(
   }
 
   return { tenantId };
+}
+
+/**
+ * Tenant of an MCP request, from its token: `/ycode/mcp/<token>` or
+ * `Authorization: Bearer <token>`. Unknown tokens resolve to no tenant, and
+ * the route then rejects them.
+ */
+export async function resolveMcpTenant(request: NextRequest): Promise<string | null> {
+  if (!isMultiTenant()) return null;
+
+  const pathToken = request.nextUrl.pathname.match(/^\/ycode\/mcp\/([^/]+)/)?.[1];
+  const bearerToken = request.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+  const token = pathToken ? decodeURIComponent(pathToken) : bearerToken;
+
+  return token ? findTenantByMcpToken(token) : null;
 }

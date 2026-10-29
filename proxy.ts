@@ -5,7 +5,7 @@ import { applySecurityHeaders } from '@/lib/security-headers-server';
 import { prefetchYcodePublishedAt } from '@/lib/ycode-html-comment';
 import { isMultiTenant } from '@/lib/database/tenancy';
 import { isPlatformAuth, TENANT_HEADER } from '@/lib/platform/config';
-import { resolvePlatformRequest } from '@/lib/platform/proxy';
+import { resolveMcpTenant, resolvePlatformRequest } from '@/lib/platform/proxy';
 
 /**
  * Public API routes that skip authentication.
@@ -179,7 +179,8 @@ export async function proxy(request: NextRequest) {
   //   - `/ycode/mcp/<token>`: legacy URL-token endpoint (Cursor, Windsurf, etc.)
   //   - `/ycode/mcp`: OAuth Bearer-token endpoint (Claude.ai web, ChatGPT)
   if (pathname === '/ycode/mcp' || pathname.startsWith('/ycode/mcp/')) {
-    return withPathname(NextResponse.next(), request, pathname);
+    const tenantId = isPlatformAuth() ? await resolveMcpTenant(request) : null;
+    return withPathname(NextResponse.next(), request, pathname, tenantId);
   }
 
   // Debug escape hatch: skip auth on preview routes when explicitly enabled.

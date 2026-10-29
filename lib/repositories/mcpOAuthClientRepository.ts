@@ -1,4 +1,5 @@
 import { getDbClient } from '@/lib/database/pg-client';
+import { isMultiTenant } from '@/lib/database/tenancy';
 import { randomBytes } from 'crypto';
 
 /**
@@ -64,6 +65,12 @@ export async function registerClient(data: RegisterClientData): Promise<McpOAuth
  * Best-effort; callers should not await failures.
  */
 export async function cleanupOrphanClients(): Promise<void> {
+  // Clients are shared by all tenants while tokens are per tenant, so a
+  // tenant-scoped run would see other tenants' clients as orphaned
+  if (isMultiTenant()) {
+    return;
+  }
+
   const client = await getDbClient();
 
   if (!client) {

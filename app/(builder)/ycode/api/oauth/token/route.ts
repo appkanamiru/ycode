@@ -9,6 +9,9 @@ import {
   type OAuthTokenPair,
 } from '@/lib/repositories/mcpTokenRepository';
 import { verifyPkce } from '@/lib/oauth/pkce';
+import { isMultiTenant } from '@/lib/database/tenancy';
+import { findTenantByOAuthGrant } from '@/lib/platform/mcp';
+import { runInTenantContext } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -104,6 +107,21 @@ export async function POST(request: NextRequest) {
     return jsonError(400, 'invalid_request', 'Missing or unparseable request body');
   }
 
+  // Multi-tenant: one token endpoint serves every site, so the code or
+  // refresh token decides which tenant the grant is handled in
+  if (!isMultiTenant()) {
+    return handleGrant(body);
+  }
+  const tenantId = await findTenantByOAuthGrant(body);
+  if (!tenantId) {
+    return body.grant_type === 'authorization_code' || body.grant_type === 'refresh_token'
+      ? jsonError(400, 'invalid_grant', 'Code or refresh token is invalid, expired, or already used')
+      : jsonError(400, 'unsupported_grant_type', `Unknown grant_type: ${body.grant_type}`);
+  }
+  return runInTenantContext(tenantId, () => handleGrant(body));
+}
+
+async function handleGrant(body: FormBody): Promise<Response> {
   // Best-effort cleanup of expired codes, dead OAuth tokens, and orphaned
   // DCR registrations ~10% of the time.
   if (Math.random() < 0.1) {
