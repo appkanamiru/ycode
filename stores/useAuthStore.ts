@@ -7,6 +7,7 @@
 import { create } from 'zustand';
 import { createBrowserClient } from '../lib/supabase-browser';
 import { extractRoleFromUser } from '@/lib/roles';
+import { fetchPlatformUser, platformSignIn, platformSignOut, platformSignUp } from '@/lib/platform/browser-auth';
 import type { User, Session } from '@supabase/supabase-js';
 
 interface AuthState {
@@ -29,6 +30,25 @@ interface AuthActions {
 
 type AuthStore = AuthState & AuthActions;
 
+/**
+ * Platform auth (plain Postgres): run the sign in/up request, then load the
+ * user from the session cookie it set.
+ */
+async function platformAuthenticate(
+  set: (state: Partial<AuthState>) => void,
+  request: () => Promise<string | null>,
+): Promise<{ error: string | null }> {
+  const error = await request();
+  if (error) {
+    set({ loading: false, error });
+    return { error };
+  }
+
+  const platform = await fetchPlatformUser();
+  set({ user: platform.user, session: null, role: platform.role, loading: false });
+  return { error: null };
+}
+
 export const useAuthStore = create<AuthStore>((set, get) => ({
   user: null,
   session: null,
@@ -47,9 +67,13 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     try {
       const supabase = await createBrowserClient();
 
-      // If Supabase is not configured, skip initialization (expected during setup)
+      // No Supabase: platform auth (plain Postgres), or setup not done yet
       if (!supabase) {
+        const platform = await fetchPlatformUser();
         set({
+          user: platform.user,
+          session: null,
+          role: platform.role,
           initialized: true,
           error: null,
         });
@@ -100,8 +124,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       const supabase = await createBrowserClient();
 
       if (!supabase) {
-        set({ loading: false, error: 'Supabase not configured. Please complete setup first.' });
-        return { error: 'Supabase not configured. Please complete setup first.' };
+        return await platformAuthenticate(set, () => platformSignUp(email, password));
       }
 
       const { data, error } = await supabase.auth.signUp({
@@ -152,8 +175,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       const supabase = await createBrowserClient();
 
       if (!supabase) {
-        set({ loading: false, error: 'Supabase not configured. Please complete setup first.' });
-        return { error: 'Supabase not configured. Please complete setup first.' };
+        return await platformAuthenticate(set, () => platformSignIn(email, password));
       }
 
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -191,6 +213,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       const supabase = await createBrowserClient();
 
       if (!supabase) {
+        await platformSignOut();
         set({
           user: null,
           session: null,
@@ -227,6 +250,8 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       const supabase = await createBrowserClient();
 
       if (!supabase) {
+        const platform = await fetchPlatformUser();
+        set({ user: platform.user, session: null, role: platform.role });
         return;
       }
 

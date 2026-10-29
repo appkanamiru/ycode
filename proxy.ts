@@ -3,6 +3,9 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { applySecurityHeaders } from '@/lib/security-headers-server';
 import { prefetchYcodePublishedAt } from '@/lib/ycode-html-comment';
+import { isMultiTenant } from '@/lib/database/tenancy';
+import { isPlatformAuth, TENANT_HEADER } from '@/lib/platform/config';
+import { resolvePlatformRequest } from '@/lib/platform/proxy';
 
 /**
  * Public API routes that skip authentication.
@@ -12,6 +15,7 @@ const PUBLIC_API_PREFIXES = [
   '/ycode/api/supabase/', // Supabase config — needed for browser client init
   '/ycode/api/auth/',     // Auth callbacks and session checks
   '/ycode/api/v1/',       // Public API — has own API key auth
+  '/ycode/api/platform/auth/', // Platform auth (sign in/up) — handles its own sessions
 ];
 
 /**
@@ -57,9 +61,20 @@ function getSupabaseEnvConfig(): { url: string; anonKey: string } | null {
   };
 }
 
+/**
+ * Request headers for the app: never trust a tenant header from the client,
+ * only the one resolved here.
+ */
+function withTenantHeader(headers: Headers, tenantId: string | null): Headers {
+  const requestHeaders = new Headers(headers);
+  requestHeaders.delete(TENANT_HEADER);
+  if (tenantId) requestHeaders.set(TENANT_HEADER, tenantId);
+  return requestHeaders;
+}
+
 /** Attach x-pathname on the request (readable via headers()) and the response. */
-function withPathname(response: NextResponse, request: NextRequest, pathname: string): NextResponse {
-  const requestHeaders = new Headers(request.headers);
+function withPathname(response: NextResponse, request: NextRequest, pathname: string, tenantId: string | null = null): NextResponse {
+  const requestHeaders = withTenantHeader(request.headers, tenantId);
   requestHeaders.set('x-pathname', pathname);
   const next = NextResponse.next({
     request: { headers: requestHeaders },
@@ -111,16 +126,8 @@ async function verifyApiAuth(request: NextRequest): Promise<NextResponse | null>
 
   const config = getSupabaseEnvConfig();
 
-  if (!config) {
-    // Plain Postgres never has Supabase auth configured, so fail closed instead
-    // of exposing the builder API; YCODE_DISABLE_AUTH is for local development only
-    if (process.env.YCODE_DB_DRIVER === 'postgres' && process.env.YCODE_DISABLE_AUTH !== 'true') {
-      return NextResponse.json({ error: 'Authentication is not configured' }, { status: 401 });
-    }
-
-    // If env vars aren't set (pre-setup or local dev without .env.local), let through
-    return null;
-  }
+  // If env vars aren't set (pre-setup or local dev without .env.local), let through
+  if (!config) return null;
 
   let response = NextResponse.next({ request });
 
@@ -159,6 +166,11 @@ async function verifyApiAuth(request: NextRequest): Promise<NextResponse | null>
   return authResponse;
 }
 
+/** The published-at stamp is cached process-wide, which only fits a single site. */
+async function prefetchSiteStamp(): Promise<void> {
+  if (!isMultiTenant()) await prefetchYcodePublishedAt();
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -177,7 +189,24 @@ export async function proxy(request: NextRequest) {
   // Protect API and preview routes with auth. `/api/templates` lives outside the
   // `/ycode` tree (public site route group) but exposes destructive builder-only
   // operations (apply/export), so it must be gated here too.
-  if (!skipPreviewAuth && (pathname.startsWith('/ycode/api') || pathname.startsWith('/ycode/preview') || pathname.startsWith('/api/templates'))) {
+  const isAuthRoute = !skipPreviewAuth && (pathname.startsWith('/ycode/api') || pathname.startsWith('/ycode/preview') || pathname.startsWith('/api/templates'));
+
+  const isPublicPage = !pathname.startsWith('/ycode')
+    && !pathname.startsWith('/_next')
+    && !pathname.startsWith('/api')
+    && !pathname.startsWith('/dynamic');
+
+  // Plain Postgres: platform sessions instead of Supabase Auth, plus tenant resolution
+  let tenantId: string | null = null;
+  if (isPlatformAuth()) {
+    const routing = await resolvePlatformRequest(request, {
+      protectedRoute: isAuthRoute && !isPublicApiRoute(pathname, request.method, request.nextUrl.searchParams),
+      builderPage: pathname.startsWith('/ycode') && !isAuthRoute,
+      publicPage: isPublicPage || pathname.startsWith('/dynamic'),
+    });
+    if (routing.response) return routing.response;
+    tenantId = routing.tenantId;
+  } else if (isAuthRoute) {
     const authResponse = await verifyApiAuth(request);
     if (authResponse) {
       if (authResponse.status === 401) {
@@ -191,37 +220,36 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  const isPublicPage = !pathname.startsWith('/ycode')
-    && !pathname.startsWith('/_next')
-    && !pathname.startsWith('/api')
-    && !pathname.startsWith('/dynamic');
   const hasPaginationParams = Array.from(request.nextUrl.searchParams.keys())
     .some((key) => key.startsWith('p_'));
 
-  if (isPublicPage && hasPaginationParams) {
+  // Multi-tenant: the static route cache is keyed by path only, which would mix
+  // sites, so every page renders through the dynamic route (data caches stay
+  // keyed per tenant)
+  if (isPublicPage && (hasPaginationParams || tenantId)) {
     const rewriteUrl = request.nextUrl.clone();
     rewriteUrl.pathname = pathname === '/' ? '/dynamic' : `/dynamic${pathname}`;
 
-    const requestHeaders = new Headers(request.headers);
+    const requestHeaders = withTenantHeader(request.headers, tenantId);
     requestHeaders.set('x-pathname', pathname);
     const rewriteResponse = NextResponse.rewrite(rewriteUrl, {
       request: { headers: requestHeaders },
     });
     rewriteResponse.headers.set('x-pathname', pathname);
-    await applySecurityHeaders(rewriteResponse);
-    await prefetchYcodePublishedAt();
+    await applySecurityHeaders(rewriteResponse, tenantId ?? undefined);
+    await prefetchSiteStamp();
     return rewriteResponse;
   }
 
   // Create response
-  const response = withPathname(NextResponse.next(), request, pathname);
+  const response = withPathname(NextResponse.next(), request, pathname, tenantId);
 
   // Cache-Control for public pages is configured centrally via next.config.ts headers().
 
   // Apply configurable security headers to public pages only (not builder/API).
   if (isPublicPage) {
-    await applySecurityHeaders(response);
-    await prefetchYcodePublishedAt();
+    await applySecurityHeaders(response, tenantId ?? undefined);
+    await prefetchSiteStamp();
   }
 
   return response;

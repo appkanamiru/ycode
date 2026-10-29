@@ -4,11 +4,14 @@
  */
 
 import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { credentials } from '@/lib/credentials';
 import { parseSupabaseConfig } from '@/lib/supabase-config-parser';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import type { SupabaseConfig } from '@/types';
+import { isPlatformAuth } from '@/lib/platform/config';
+import { resolveBuilderAccess } from '@/lib/platform/tenants';
+import { toAppUser } from '@/lib/platform/user';
 
 interface AuthResult {
   user: User;
@@ -20,6 +23,10 @@ interface AuthResult {
  * Returns null if not authenticated or Supabase is not configured.
  */
 export async function getAuthUser(): Promise<AuthResult | null> {
+  if (isPlatformAuth()) {
+    return getPlatformAuthUser();
+  }
+
   try {
     const config = await credentials.get<SupabaseConfig>('supabase_config');
     if (!config) return null;
@@ -44,6 +51,28 @@ export async function getAuthUser(): Promise<AuthResult | null> {
     if (error || !user) return null;
 
     return { user, client };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Supabase Auth client operations (profile changes) are not available with
+ * platform auth; fail clearly instead of with an undefined property.
+ */
+const platformAuthClient = new Proxy({}, {
+  get() {
+    throw new Error('This operation is not available with platform auth yet');
+  },
+}) as SupabaseClient;
+
+/** Platform session (plain Postgres) in the same shape as the Supabase result. */
+async function getPlatformAuthUser(): Promise<AuthResult | null> {
+  try {
+    const access = await resolveBuilderAccess(await headers());
+    if (!access) return null;
+
+    return { user: toAppUser(access), client: platformAuthClient };
   } catch {
     return null;
   }

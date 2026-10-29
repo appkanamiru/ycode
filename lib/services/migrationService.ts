@@ -3,6 +3,7 @@ import { migrations } from '../migrations-loader';
 import { TENANT_SETTING } from '../database/pg-client/client';
 import { ensurePostgresCompat } from '../database/postgres-compat';
 import { applyTenancy, isMultiTenant, TEMPLATE_TENANT_ID } from '../database/tenancy';
+import { migratePlatform } from '../platform/auth';
 
 /**
  * Migration Service
@@ -130,6 +131,11 @@ export async function runMigrations(): Promise<MigrationResult> {
     // Scope tables and unique indexes added by this batch to tenants
     if (isMultiTenant()) {
       await applyTenancy(knex);
+    }
+
+    // Accounts, organizations (tenants) and domains
+    if (process.env.YCODE_DB_DRIVER === 'postgres') {
+      await migratePlatform();
     }
 
     // Close connection

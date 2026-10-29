@@ -6,7 +6,8 @@
  *   DATABASE_URL=postgres://... YCODE_MULTI_TENANT=true npm run migrate:postgres
  *
  * Same steps as the in-app migration runner: Supabase compatibility stubs,
- * pending migrations, then (multi-tenant) tenant scoping of the schema.
+ * pending migrations, (multi-tenant) tenant scoping of the schema, then the
+ * platform schema (accounts, organizations, domains).
  *
  * Some migrations import modules guarded by `server-only`, so it is
  * neutralized for this standalone CLI.
@@ -24,6 +25,8 @@ const knex = require('knex');
 const { TENANT_SETTING } = require('@/lib/database/pg-client/client');
 const { ensurePostgresCompat } = require('@/lib/database/postgres-compat');
 const { applyTenancy, isMultiTenant, TEMPLATE_TENANT_ID } = require('@/lib/database/tenancy');
+const { migratePlatform } = require('@/lib/platform/auth');
+const { getPlatformPool } = require('@/lib/platform/db');
 
 async function main() {
   if (!process.env.DATABASE_URL) {
@@ -64,8 +67,12 @@ async function main() {
         console.warn(`  kept global (referenced by a foreign key): ${index.table}.${index.index}`);
       }
     }
+
+    await migratePlatform();
+    console.log('Platform schema: up to date');
   } finally {
     await db.destroy();
+    await getPlatformPool().end();
   }
 }
 

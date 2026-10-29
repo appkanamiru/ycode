@@ -3,6 +3,9 @@ import { noCache } from '@/lib/api-response';
 import { validateConnectionUrl } from '@/lib/supabase-config-parser';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import type { SupabaseConfig } from '@/types';
+import { isMultiTenant } from '@/lib/database/tenancy';
+import { isPlatformAuth } from '@/lib/platform/config';
+import { hasPlatformUsers } from '@/lib/platform/auth';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -36,6 +39,15 @@ async function hasAuthUsers(): Promise<boolean> {
  */
 export async function GET() {
   try {
+    // Plain Postgres: configured through DATABASE_URL, accounts in the platform schema
+    if (isPlatformAuth()) {
+      return noCache({
+        is_configured: true,
+        is_setup_complete: isMultiTenant() || await hasPlatformUsers(),
+        is_vercel: process.env.VERCEL === '1',
+      });
+    }
+
     const config = await credentials.get<SupabaseConfig>('supabase_config');
     const isVercel = process.env.VERCEL === '1';
 

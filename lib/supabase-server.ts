@@ -5,6 +5,8 @@ import { credentials } from './credentials';
 import { parseSupabaseConfig } from './supabase-config-parser';
 import type { SupabaseConfig, SupabaseCredentials } from '@/types';
 import { withLimit } from './supabase-limiter';
+import { isMultiTenant } from './database/tenancy';
+import { TENANT_HEADER } from './platform/config';
 
 /**
  * Supabase Server Client
@@ -13,15 +15,30 @@ import { withLimit } from './supabase-limiter';
  * Credentials are fetched from file-based storage or environment variables
  */
 
+const globalForTenant = globalThis as unknown as { __tenantStore?: AsyncLocalStorage<string> };
+
 /**
  * Explicit tenant context for code running outside of a Next.js request
  * (e.g. fire-and-forget webhook processing where headers() is unavailable).
+ *
+ * Stored on globalThis: the proxy and the app are separate bundles with their
+ * own module instances, and shared singletons (the database client) must see
+ * the same context whichever bundle created them.
  */
-export const tenantStore = new AsyncLocalStorage<string>();
+export const tenantStore = globalForTenant.__tenantStore ??= new AsyncLocalStorage<string>();
 
 /** Run an async function with an explicit tenant context. */
 export function runWithTenantId<T>(tenantId: string, fn: () => Promise<T>): Promise<T> {
   return tenantStore.run(tenantId, fn);
+}
+
+/**
+ * Run a cached loader in the tenant's context, when there is one. Request
+ * headers are not readable inside unstable_cache, so the tenant is resolved
+ * outside and carried in.
+ */
+export function runInTenantContext<T>(tenantId: string | null | undefined, fn: () => Promise<T>): Promise<T> {
+  return tenantId ? runWithTenantId(tenantId, fn) : fn();
 }
 
 /**
@@ -129,12 +146,22 @@ export async function testSupabaseConnection(
 /**
  * Get tenant ID from request headers.
  *
- * Base implementation: only the explicit `runWithTenantId()` context, null
- * otherwise (single-tenant, no scoping needed).
- * Overridden via path alias in multi-tenant deployments.
+ * The explicit `runWithTenantId()` context wins. In multi-tenant mode the
+ * proxy resolves the tenant (session or hostname) into a request header;
+ * otherwise null (single-tenant, no scoping needed).
  */
 export async function getTenantIdFromHeaders(): Promise<string | null> {
-  return tenantStore.getStore() ?? null;
+  const explicit = tenantStore.getStore();
+  if (explicit) return explicit;
+  if (!isMultiTenant()) return null;
+
+  try {
+    const { headers } = await import('next/headers');
+    return (await headers()).get(TENANT_HEADER);
+  } catch {
+    // Outside a request (scripts, background work without runWithTenantId)
+    return null;
+  }
 }
 
 /**
