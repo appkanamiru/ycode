@@ -7,7 +7,7 @@
 import type { CollectionField, Layer } from '@/types';
 import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
 import { getPageById } from '@/lib/repositories/pageRepository';
-import { applyFieldBinding, buildFieldData } from '@/lib/mcp/field-binding-core';
+import { applyFieldBinding, buildFieldData, getFieldFormatError } from '@/lib/mcp/field-binding-core';
 import type { BindingSource, BindingTarget } from '@/lib/mcp/field-binding-core';
 import { findParentCollectionLayer } from '@/lib/layer-utils';
 
@@ -86,6 +86,9 @@ export async function bindLayerToField(
   if (!field) {
     return { error: `Field "${input.field_id}" not found in the ${input.source === 'page' ? 'page' : 'list'} collection.` };
   }
+
+  const formatError = getFieldFormatError(field, input.format);
+  if (formatError) return { error: formatError };
 
   const fieldData = buildFieldData(field, input.source, ctx.collectionLayerId, input.format);
   return applyFieldBinding(layer, field, fieldData, input);

@@ -16,6 +16,8 @@ import {
   bindLayerToField,
   buildFieldData,
   dynamicVariableNode,
+  FORMAT_DESCRIPTION,
+  getFieldFormatError,
   paragraphDoc,
   resolveBindingContext,
 } from '@/lib/mcp/field-binding';
@@ -298,7 +300,7 @@ one batch_operations call instead of one call per field.`,
         .describe('"collection" = nearest ancestor Collection List (default). "page" = the dynamic page\'s collection item.'),
       target: z.enum(['auto', 'src', 'alt', 'poster', 'background']).default('auto')
         .describe('What to bind. "auto" picks by layer type (text→text, image/video/audio→src). Use "alt", "poster", or "background" for those specific targets.'),
-      format: z.string().optional().describe('Optional value format (e.g. a date format) applied when rendering the field.'),
+      format: z.string().optional().describe(FORMAT_DESCRIPTION),
       prefix: z.string().optional().describe('Text layers only: literal text rendered before the field value.'),
       suffix: z.string().optional().describe('Text layers only: literal text rendered after the field value.'),
     },
@@ -351,7 +353,7 @@ or on a dynamic CMS page (source "page").`,
         z.object({
           type: z.literal('field'),
           field_id: z.string().describe('Collection field ID to insert.'),
-          format: z.string().optional().describe('Optional value format (e.g. a date format).'),
+          format: z.string().optional().describe(FORMAT_DESCRIPTION),
         }),
       ])).min(1).describe('Ordered segments interleaving literal text and field references.'),
     },
@@ -388,6 +390,10 @@ or on a dynamic CMS page (source "page").`,
         const field = fieldsById.get(seg.field_id);
         if (!field) {
           return { content: [{ type: 'text' as const, text: `Error: Field "${seg.field_id}" not found in the ${source === 'page' ? 'page' : 'list'} collection.` }], isError: true };
+        }
+        const formatError = getFieldFormatError(field, seg.format);
+        if (formatError) {
+          return { content: [{ type: 'text' as const, text: `Error: ${formatError}` }], isError: true };
         }
         content.push(dynamicVariableNode(buildFieldData(field, source, collectionLayerId, seg.format), field.name));
         fieldCount += 1;
