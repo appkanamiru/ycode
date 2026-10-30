@@ -10,6 +10,7 @@
 import type { Knex } from 'knex';
 
 import { TEMPLATE_TENANT_ID } from '@/lib/database/tenancy';
+import { translateKnownStrings } from '@/lib/templates/localize';
 
 export const SITE_DEFAULTS = {
   /** Default language of the site's pages */
@@ -36,5 +37,37 @@ export async function applySiteDefaults(db: Knex): Promise<void> {
         .onConflict(['tenant_id', 'key'])
         .merge({ value: JSON.stringify(value), updated_at: trx.fn.now() });
     }
+
+    await translateErrorPages(trx, code);
   });
+}
+
+/** Error pages (password, not found, server error) in the default language */
+async function translateErrorPages(trx: Knex.Transaction, localeCode: string): Promise<void> {
+  const pages = await trx('pages')
+    .where({ tenant_id: TEMPLATE_TENANT_ID })
+    .whereNotNull('error_page')
+    .select('id', 'is_published', 'name', 'settings');
+
+  for (const page of pages) {
+    const name = translateKnownStrings(page.name, localeCode);
+    const settings = translateKnownStrings(page.settings, localeCode);
+    if (name !== page.name || JSON.stringify(settings) !== JSON.stringify(page.settings)) {
+      await trx('pages')
+        .where({ tenant_id: TEMPLATE_TENANT_ID, id: page.id, is_published: page.is_published })
+        .update({ name, settings: JSON.stringify(settings) });
+    }
+
+    const pageLayers = await trx('page_layers')
+      .where({ tenant_id: TEMPLATE_TENANT_ID, page_id: page.id, is_published: page.is_published })
+      .select('id', 'layers');
+    for (const row of pageLayers) {
+      const layers = translateKnownStrings(row.layers, localeCode);
+      if (JSON.stringify(layers) !== JSON.stringify(row.layers)) {
+        await trx('page_layers')
+          .where({ tenant_id: TEMPLATE_TENANT_ID, id: row.id, is_published: page.is_published })
+          .update({ layers: JSON.stringify(layers) });
+      }
+    }
+  }
 }

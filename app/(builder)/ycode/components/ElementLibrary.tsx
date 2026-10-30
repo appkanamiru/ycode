@@ -44,6 +44,8 @@ import { usePagesStore } from '@/stores/usePagesStore';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
 import { flattenInlinedComponents } from '@/lib/templates/inlined-components';
+import { localizeTemplateTexts } from '@/lib/templates/localize';
+import { useLocalisationStore } from '@/stores/useLocalisationStore';
 import { useEditorActions } from '@/hooks/use-editor-url';
 import { useLocalizationMode } from '@/hooks/use-localization-mode';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
@@ -324,7 +326,7 @@ export default function ElementLibrary({ isOpen, onClose, liveLayerUpdates }: El
       const layers = useComponentsStore.getState().componentDrafts[editingComponentId]?.[activeComponentVariantId] || [];
       const parentId = selectedLayerId || layers[0]?.id || 'body';
 
-      const template = getLayerFromTemplate(elementType);
+      const template = localizeTemplateTexts(getLayerFromTemplate(elementType), useLocalisationStore.getState().defaultLocale?.code);
       const displayName = getBlockName(elementType);
 
       // Collect existing settings IDs to generate unique ones

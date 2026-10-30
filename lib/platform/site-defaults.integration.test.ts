@@ -16,6 +16,7 @@ import { applySiteDefaults } from './site-defaults';
 const DATABASE_URL = process.env.PG_CLIENT_TEST_DATABASE_URL;
 const SCHEMA = 'site_defaults_test';
 const SITE = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+const PAGE = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 
 let db: Knex;
 
@@ -47,6 +48,20 @@ before(async () => {
       updated_at timestamptz,
       unique (tenant_id, key)
     );
+    create table pages (
+      id uuid not null, tenant_id uuid not null, is_published boolean not null default false,
+      name text, error_page integer, settings jsonb, primary key (tenant_id, id, is_published)
+    );
+    create table page_layers (
+      id uuid not null, tenant_id uuid not null, page_id uuid not null, is_published boolean not null default false,
+      layers jsonb not null, primary key (tenant_id, id, is_published)
+    );
+    insert into pages (id, tenant_id, is_published, name, error_page, settings) values
+      ('${PAGE}', '${TEMPLATE_TENANT_ID}', false, '404 - Page not found', 404, '{"seo":{"title":"Error 404 - Page not found"}}'),
+      ('${PAGE}', '${SITE}', false, '404 - Page not found', 404, '{"seo":{"title":"Error 404 - Page not found"}}');
+    insert into page_layers (id, tenant_id, page_id, is_published, layers) values
+      ('${PAGE}', '${TEMPLATE_TENANT_ID}', '${PAGE}', false, '[{"id":"t","variables":{"text":{"data":{"content":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Page not found"}]}]}}}}}]'),
+      ('${PAGE}', '${SITE}', '${PAGE}', false, '[{"id":"t","variables":{"text":{"data":{"content":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Page not found"}]}]}}}}}]');
     insert into locales (tenant_id, code, label, is_default) values
       ('${TEMPLATE_TENANT_ID}', 'en', 'English', true),
       ('${SITE}', 'en', 'English', true);
@@ -78,4 +93,12 @@ test('the template gets the defaults, existing sites keep theirs', { skip: !DATA
     { tenant_id: TEMPLATE_TENANT_ID, key: 'ycode_badge', value: false },
     { tenant_id: SITE, key: 'timezone', value: 'UTC' },
   ]);
+
+  const pages = await db('pages').select('tenant_id', 'name', 'settings').orderBy('tenant_id');
+  assert.deepEqual(pages, [
+    { tenant_id: TEMPLATE_TENANT_ID, name: '404 – Stránka nenalezena', settings: { seo: { title: 'Chyba 404 – Stránka nenalezena' } } },
+    { tenant_id: SITE, name: '404 - Page not found', settings: { seo: { title: 'Error 404 - Page not found' } } },
+  ]);
+  const texts = await db('page_layers').select('tenant_id', db.raw(`layers #>> '{0,variables,text,data,content,content,0,content,0,text}' as text`)).orderBy('tenant_id');
+  assert.deepEqual(texts.map((row: { text: string }) => row.text), ['Stránka nenalezena', 'Page not found']);
 });
