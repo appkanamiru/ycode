@@ -11,7 +11,7 @@ import { after, before, test } from 'node:test';
 import knex, { type Knex } from 'knex';
 
 import { TEMPLATE_TENANT_ID } from '@/lib/database/tenancy';
-import { applySiteDefaults } from './site-defaults';
+import { applySiteDefaults, setNewSiteName } from './site-defaults';
 
 const DATABASE_URL = process.env.PG_CLIENT_TEST_DATABASE_URL;
 const SCHEMA = 'site_defaults_test';
@@ -89,6 +89,7 @@ test('the template gets the defaults, existing sites keep theirs', { skip: !DATA
 
   const settings = await db('settings').select('tenant_id', 'key', 'value').orderBy(['tenant_id', 'key']);
   assert.deepEqual(settings, [
+    { tenant_id: TEMPLATE_TENANT_ID, key: 'site_description', value: '' },
     { tenant_id: TEMPLATE_TENANT_ID, key: 'timezone', value: 'Europe/Prague' },
     { tenant_id: TEMPLATE_TENANT_ID, key: 'ycode_badge', value: false },
     { tenant_id: SITE, key: 'timezone', value: 'UTC' },
@@ -101,4 +102,15 @@ test('the template gets the defaults, existing sites keep theirs', { skip: !DATA
   ]);
   const texts = await db('page_layers').select('tenant_id', db.raw(`layers #>> '{0,variables,text,data,content,content,0,content,0,text}' as text`)).orderBy('tenant_id');
   assert.deepEqual(texts.map((row: { text: string }) => row.text), ['Stránka nenalezena', 'Page not found']);
+});
+
+test('a new site is named after the name it was created with', { skip: !DATABASE_URL }, async () => {
+  const site = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
+  await db('settings').insert({ tenant_id: site, key: 'site_name', value: JSON.stringify('Ycode Site') });
+
+  await setNewSiteName(db, site, 'Kavárna "U Lípy"');
+
+  const row = await db('settings').where({ tenant_id: site, key: 'site_name' }).first('value');
+  assert.equal(row.value, 'Kavárna "U Lípy"');
+  await db('settings').where({ tenant_id: site }).delete();
 });

@@ -23,6 +23,7 @@ import { PostgresDialect } from 'kysely';
 
 import { getKnexClient } from '@/lib/knex-client';
 import { provisionTenant } from '@/lib/database/tenant-provisioning';
+import { setNewSiteName } from './site-defaults';
 import { isMultiTenant } from '@/lib/database/tenancy';
 import { getInvitationUrl, PLATFORM_AUTH_BASE_PATH, PLATFORM_SCHEMA } from './config';
 import { getPlatformPool } from './db';
@@ -144,7 +145,9 @@ export function createAuthOptions() {
             if (changes.slug !== undefined) assertValidSlug(changes.slug);
           },
           afterCreateOrganization: async ({ organization: created }) => {
-            await provisionTenant(await getKnexClient(), created.id);
+            const knex = await getKnexClient();
+            await provisionTenant(knex, created.id);
+            await setNewSiteName(knex, created.id, created.name);
           },
         },
       }),

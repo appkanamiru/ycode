@@ -18,8 +18,18 @@ export const SITE_DEFAULTS = {
   settings: {
     timezone: 'Europe/Prague',
     ycode_badge: false,
+    // The site's own name is set when it is created (setNewSiteName)
+    site_description: '',
   } as Record<string, unknown>,
 };
+
+/** Name a freshly provisioned site after the name it was created with */
+export async function setNewSiteName(db: Knex, tenantId: string, name: string): Promise<void> {
+  await db('settings')
+    .insert({ tenant_id: tenantId, key: 'site_name', value: JSON.stringify(name) })
+    .onConflict(['tenant_id', 'key'])
+    .merge({ value: JSON.stringify(name), updated_at: db.fn.now() });
+}
 
 export async function applySiteDefaults(db: Knex): Promise<void> {
   await db.transaction(async (trx) => {

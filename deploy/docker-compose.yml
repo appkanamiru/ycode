@@ -19,6 +19,9 @@ x-app-environment: &app-environment
   PLATFORM_DOMAIN_IPV4: ${PLATFORM_DOMAIN_IPV4:-}
   SMTP_URL: ${SMTP_URL:?set SMTP_URL}
   MAIL_FROM: ${MAIL_FROM:?set MAIL_FROM}
+  # Named in the generator meta tag and the source comment of published sites
+  SITE_GENERATOR_NAME: ${SITE_GENERATOR_NAME:-Appkanamiru}
+  SITE_GENERATOR_URL: ${SITE_GENERATOR_URL:-appkanamiru.cz}
 
 x-app-image: &app-image
   build:

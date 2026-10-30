@@ -11,6 +11,21 @@ const MONTHS = [
 
 export const MADE_IN_YCODE_COMMENT = 'Made in Ycode · ycode.com';
 
+/**
+ * The builder that published sites name as their generator (meta tag and
+ * source stamp): SITE_GENERATOR_NAME and SITE_GENERATOR_URL, Ycode by default.
+ */
+export function getSiteGenerator(): { name: string; url: string | null } {
+  const name = process.env.SITE_GENERATOR_NAME?.trim();
+  if (!name) return { name: 'Ycode', url: 'ycode.com' };
+  return { name, url: process.env.SITE_GENERATOR_URL?.trim() || null };
+}
+
+function getMadeInComment(): string {
+  const { name, url } = getSiteGenerator();
+  return url ? `Made in ${name} · ${url}` : `Made in ${name}`;
+}
+
 /** Strip sequences that would terminate an HTML comment. */
 function escapeHtmlComment(text: string): string {
   return text.replace(/--+/g, '-');
@@ -42,7 +57,7 @@ function parsePublishedAt(publishedAt?: string | Date | null): Date | null {
  * Always includes the Made-in line; adds Published when a valid timestamp exists.
  */
 export function buildYcodeHtmlComments(publishedAt?: string | Date | null): string {
-  const lines = [`<!-- ${escapeHtmlComment(MADE_IN_YCODE_COMMENT)} -->`];
+  const lines = [`<!-- ${escapeHtmlComment(getMadeInComment())} -->`];
   const date = parsePublishedAt(publishedAt);
   if (date) {
     lines.push(`<!-- Published ${escapeHtmlComment(formatYcodePublishedCommentDate(date))} -->`);
@@ -61,7 +76,7 @@ export function insertYcodeHtmlComments(
   html: string,
   publishedAt?: string | Date | null,
 ): string {
-  if (html.slice(0, 500).includes(MADE_IN_YCODE_COMMENT)) {
+  if (html.slice(0, 500).includes(escapeHtmlComment(getMadeInComment()))) {
     return html;
   }
 

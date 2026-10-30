@@ -8,12 +8,11 @@ import { setDocumentPathname } from '@/lib/document-path';
 import { fetchGlobalPageSettings } from '@/lib/generate-page-metadata';
 import { renderRootLayoutHeadCode } from '@/lib/parse-head-html';
 import { resolvePageDocumentChrome } from '@/lib/resolve-page-head-code';
-import { runWithYcodeStamp } from '@/lib/ycode-html-comment';
+import { getSiteGenerator, runWithYcodeStamp } from '@/lib/ycode-html-comment';
 
-const ycodeGeneratorMetadata: Metadata = {
-  ...defaultMetadata,
-  other: { generator: 'Ycode' },
-};
+function getGeneratorMetadata(): Metadata {
+  return { ...defaultMetadata, other: { generator: getSiteGenerator().name } };
+}
 
 interface SiteDocumentLayoutProps {
   children: ReactNode;
@@ -92,12 +91,12 @@ export default async function SiteDocumentLayout({
 
 export async function generateSiteMetadata(): Promise<Metadata> {
   if (process.env.SKIP_SETUP === 'true') {
-    return ycodeGeneratorMetadata;
+    return getGeneratorMetadata();
   }
 
   try {
     const globalSettings = await fetchGlobalPageSettings();
-    const metadata: Metadata = { ...ycodeGeneratorMetadata };
+    const metadata: Metadata = getGeneratorMetadata();
 
     if (globalSettings.faviconUrl || globalSettings.webClipUrl) {
       metadata.icons = {};
@@ -111,6 +110,6 @@ export async function generateSiteMetadata(): Promise<Metadata> {
 
     return metadata;
   } catch {
-    return ycodeGeneratorMetadata;
+    return getGeneratorMetadata();
   }
 }
