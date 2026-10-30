@@ -182,6 +182,8 @@ export async function POST(request: NextRequest) {
     const deletedCollectionItemSlugs: Map<string, string[]> = new Map();
     const renamedPageOldRoutes: string[] = [];
     const unpublishedPageRoutes: string[] = [];
+    // Pages or folders added, removed, renamed or moved: links to them change on every page
+    let linkTargetsChanged = false;
     let localisationResult: PublishLocalisationResult | null = null;
 
     // Backfill any missing content_hash values before publish so change
@@ -202,6 +204,7 @@ export async function POST(request: NextRequest) {
         pageIds
       );
       result.changes.folders = foldersResult.count;
+      if (foldersResult.count > 0) linkTargetsChanged = true;
       stats.tables.page_folders.durationMs = Math.round(performance.now() - stepStart);
       stats.tables.page_folders.added = foldersResult.count;
     }
@@ -213,6 +216,7 @@ export async function POST(request: NextRequest) {
         publishedPageIds.push(...pagesResult.changedPageIds);
         renamedPageOldRoutes.push(...pagesResult.renamedPageOldRoutes);
         unpublishedPageRoutes.push(...pagesResult.unpublishedPageRoutes);
+        if (pagesResult.linkTargetsChanged) linkTargetsChanged = true;
         result.changes.pages = pagesResult.count;
         stats.tables.pages.added = pagesResult.count;
         stats.tables.pages.durationMs = pagesResult.timing.pagesDurationMs;
@@ -226,6 +230,7 @@ export async function POST(request: NextRequest) {
           publishedPageIds.push(...pagesResult.changedPageIds);
           renamedPageOldRoutes.push(...pagesResult.renamedPageOldRoutes);
           unpublishedPageRoutes.push(...pagesResult.unpublishedPageRoutes);
+          if (pagesResult.linkTargetsChanged) linkTargetsChanged = true;
           result.changes.pages = pagesResult.count;
           stats.tables.pages.added = pagesResult.count;
           stats.tables.pages.durationMs = pagesResult.timing.pagesDurationMs;
@@ -664,6 +669,16 @@ export async function POST(request: NextRequest) {
         globalChangedReason = globalChangedReason
           ? `${globalChangedReason}; global variables changed`
           : 'global variables changed';
+      }
+
+      // Links to pages are rendered from the list of published pages and
+      // folders, so a page or folder that was added, removed, renamed or
+      // moved changes links on pages that were not republished
+      if (linkTargetsChanged || deletedPageRoutes.length > 0) {
+        globalChanged = true;
+        globalChangedReason = globalChangedReason
+          ? `${globalChangedReason}; pages added, removed or moved`
+          : 'pages added, removed or moved';
       }
 
       // Locales/translations live in a separate table — their changes don't

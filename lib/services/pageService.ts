@@ -165,6 +165,11 @@ export interface PublishPagesResult {
   renamedPageOldRoutes: string[];
   /** Route paths removed from the live site because a page was set to draft */
   unpublishedPageRoutes: string[];
+  /**
+   * Whether the set of page URLs changed (a page added, removed, renamed or
+   * moved): links to those pages render differently on every page
+   */
+  linkTargetsChanged: boolean;
   timing: {
     pagesDurationMs: number;
     layersDurationMs: number;
@@ -181,7 +186,7 @@ export interface PublishPagesResult {
  */
 export async function publishPages(pageIds: string[]): Promise<PublishPagesResult> {
   if (pageIds.length === 0) {
-    return { count: 0, changedPageIds: [], renamedPageOldRoutes: [], unpublishedPageRoutes: [], timing: { pagesDurationMs: 0, layersDurationMs: 0, layersCount: 0 } };
+    return { count: 0, changedPageIds: [], renamedPageOldRoutes: [], unpublishedPageRoutes: [], linkTargetsChanged: false, timing: { pagesDurationMs: 0, layersDurationMs: 0, layersCount: 0 } };
   }
 
   // Import folder functions
@@ -247,7 +252,7 @@ export async function publishPages(pageIds: string[]): Promise<PublishPagesResul
   }
 
   if (validDraftPages.length === 0) {
-    return { count: 0, changedPageIds: [], renamedPageOldRoutes: [], unpublishedPageRoutes, timing: { pagesDurationMs: 0, layersDurationMs: 0, layersCount: 0 } };
+    return { count: 0, changedPageIds: [], renamedPageOldRoutes: [], unpublishedPageRoutes, linkTargetsChanged: unpublishedPageRoutes.length > 0, timing: { pagesDurationMs: 0, layersDurationMs: 0, layersCount: 0 } };
   }
 
   // Step 2: Collect all unique folder IDs from pages
@@ -407,15 +412,21 @@ export async function publishPages(pageIds: string[]): Promise<PublishPagesResul
   // old URLs can be invalidated (prevents stale caches at the previous URL)
   const renamedPageOldRoutes: string[] = [];
   const publishedFoldersArray = publishedFolders as PageFolder[];
+  let linkTargetsChanged = unpublishedPageRoutes.length > 0;
 
   for (const upsertPage of pagesToUpsert) {
     const oldPublished = publishedPagesById.get(upsertPage.id);
-    if (!oldPublished) continue; // new page, no old route
+    if (!oldPublished) {
+      linkTargetsChanged = true;
+      continue; // new page, no old route
+    }
+    if (oldPublished.is_index !== upsertPage.is_index) linkTargetsChanged = true;
 
     const slugChanged = oldPublished.slug !== upsertPage.slug;
     const folderChanged = oldPublished.page_folder_id !== upsertPage.page_folder_id;
 
     if (slugChanged || folderChanged) {
+      linkTargetsChanged = true;
       const oldPath = buildSlugPath(
         oldPublished as Page,
         publishedFoldersArray,
@@ -609,6 +620,7 @@ export async function publishPages(pageIds: string[]): Promise<PublishPagesResul
     changedPageIds: allChangedIds,
     renamedPageOldRoutes,
     unpublishedPageRoutes,
+    linkTargetsChanged,
     timing: {
       pagesDurationMs,
       layersDurationMs,
