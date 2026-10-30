@@ -7,6 +7,9 @@
  * domain whose old DNS records still point here. Several sites may have a
  * pending claim on a hostname; the first to verify it gets it.
  *
+ * A site can make one of its domains primary: its other hostnames (the free
+ * subdomain, other domains) then redirect there.
+ *
  * Env: PLATFORM_DOMAIN_IPV4 (A record target for apex domains),
  * PLATFORM_DNS_SERVERS (comma-separated resolvers, default: system).
  */
@@ -17,7 +20,7 @@ import { domainToASCII } from 'url';
 
 import { PLATFORM_SCHEMA, getSitesDomain } from './config';
 import { getPlatformPool } from './db';
-import { forgetHostname, normalizeHostname } from './tenants';
+import { forgetHostname, forgetPrimaryHost, normalizeHostname } from './tenants';
 
 export const VERIFICATION_PREFIX = '_ycode-verification';
 const VERIFICATION_VALUE_PREFIX = 'ycode-verification=';
@@ -85,6 +88,8 @@ export interface DomainStatus {
   hostname: string;
   verified: boolean;
   verifiedAt: string | null;
+  /** The site's other hostnames redirect here */
+  primary: boolean;
   /** DNS records the customer should create */
   records: DnsRecord[];
 }
@@ -94,6 +99,7 @@ interface DomainRow {
   hostname: string;
   verification_token: string;
   verified_at: Date | null;
+  is_primary: boolean;
 }
 
 function toStatus(row: DomainRow, siteSlug: string): DomainStatus {
@@ -116,13 +122,14 @@ function toStatus(row: DomainRow, siteSlug: string): DomainStatus {
     hostname: row.hostname,
     verified: Boolean(row.verified_at),
     verifiedAt: row.verified_at?.toISOString() ?? null,
+    primary: row.is_primary,
     records,
   };
 }
 
 export async function listDomains(siteId: string, siteSlug: string): Promise<DomainStatus[]> {
   const { rows } = await getPlatformPool().query<DomainRow>(
-    `select id, hostname, verification_token, verified_at from ${PLATFORM_SCHEMA}.domains
+    `select id, hostname, verification_token, verified_at, is_primary from ${PLATFORM_SCHEMA}.domains
      where tenant_id = $1 order by created_at`,
     [siteId],
   );
@@ -144,7 +151,7 @@ export async function addDomain(siteId: string, siteSlug: string, input: unknown
   const { rows } = await pool.query<DomainRow>(
     `insert into ${PLATFORM_SCHEMA}.domains (tenant_id, hostname, verification_token) values ($1, $2, $3)
      on conflict (tenant_id, hostname) do nothing
-     returning id, hostname, verification_token, verified_at`,
+     returning id, hostname, verification_token, verified_at, is_primary`,
     [siteId, hostname, randomBytes(16).toString('hex')],
   );
   if (!rows[0]) throw new DomainError('This domain is already added', 409);
@@ -158,6 +165,59 @@ export async function removeDomain(siteId: string, domainId: string): Promise<vo
   );
   if (!rows[0]) throw new DomainError('Domain not found', 404);
   forgetHostname(rows[0].hostname);
+  forgetPrimaryHost(siteId);
+}
+
+/**
+ * Make a domain the site's primary one, or stop redirecting to it. Only a
+ * verified domain whose DNS already points here can become primary: the
+ * site's other hostnames start redirecting to it right away.
+ */
+export async function setPrimaryDomain(
+  siteId: string,
+  siteSlug: string,
+  domainId: string,
+  primary: boolean,
+  lookup: DnsLookup = getDnsResolver(),
+): Promise<DomainStatus> {
+  const pool = getPlatformPool();
+  const { rows } = await pool.query<DomainRow>(
+    `select id, hostname, verification_token, verified_at, is_primary from ${PLATFORM_SCHEMA}.domains where id = $1 and tenant_id = $2`,
+    [domainId, siteId],
+  );
+  if (!rows[0]) throw new DomainError('Domain not found', 404);
+
+  if (primary) {
+    const status = toStatus(rows[0], siteSlug);
+    if (!status.verified) throw new DomainError('Verify the domain before making it primary');
+    if (!await isRoutedHere(lookup, status)) {
+      throw new DomainError('The domain does not point to this site yet. Create the DNS record first');
+    }
+  }
+
+  const client = await pool.connect();
+  let updated: DomainRow;
+  try {
+    await client.query('begin');
+    if (primary) {
+      await client.query(`update ${PLATFORM_SCHEMA}.domains set is_primary = false where tenant_id = $1 and id <> $2`, [siteId, domainId]);
+    }
+    const result = await client.query<DomainRow>(
+      `update ${PLATFORM_SCHEMA}.domains set is_primary = $2 where id = $1
+       returning id, hostname, verification_token, verified_at, is_primary`,
+      [domainId, primary],
+    );
+    await client.query('commit');
+    updated = result.rows[0];
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  forgetPrimaryHost(siteId);
+  return toStatus(updated, siteSlug);
 }
 
 async function lookupTxt(lookup: DnsLookup, name: string): Promise<string[]> {
@@ -204,7 +264,7 @@ export async function verifyDomain(
 ): Promise<VerificationResult> {
   const pool = getPlatformPool();
   const { rows } = await pool.query<DomainRow>(
-    `select id, hostname, verification_token, verified_at from ${PLATFORM_SCHEMA}.domains where id = $1 and tenant_id = $2`,
+    `select id, hostname, verification_token, verified_at, is_primary from ${PLATFORM_SCHEMA}.domains where id = $1 and tenant_id = $2`,
     [domainId, siteId],
   );
   if (!rows[0]) throw new DomainError('Domain not found', 404);
@@ -219,7 +279,7 @@ export async function verifyDomain(
       await client.query('begin');
       const { rows: updated } = await client.query<DomainRow>(
         `update ${PLATFORM_SCHEMA}.domains set verified_at = now() where id = $1
-         returning id, hostname, verification_token, verified_at`,
+         returning id, hostname, verification_token, verified_at, is_primary`,
         [row.id],
       );
       // Pending claims of other sites on this hostname are void now

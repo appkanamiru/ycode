@@ -45,7 +45,10 @@ const DOMAINS_TABLE_SQL = `
   create unique index if not exists domains_verified_hostname_unique
     on ${PLATFORM_SCHEMA}.domains (hostname) where verified_at is not null;
   create unique index if not exists domains_tenant_hostname_unique
-    on ${PLATFORM_SCHEMA}.domains (tenant_id, hostname);`;
+    on ${PLATFORM_SCHEMA}.domains (tenant_id, hostname);
+  -- One primary domain per site
+  create unique index if not exists domains_tenant_primary_unique
+    on ${PLATFORM_SCHEMA}.domains (tenant_id) where is_primary;`;
 
 async function countUsers(): Promise<number> {
   const { rows } = await getPlatformPool().query(`select count(*)::int as count from ${PLATFORM_SCHEMA}."user"`);

@@ -16,9 +16,11 @@ import { getPlatformAuth } from './auth';
 const HOST_CACHE_TTL_MS = 30_000;
 const globalForHosts = globalThis as unknown as {
   __platformHostCache?: Map<string, { tenantId: string | null; expiresAt: number }>;
+  __platformPrimaryHostCache?: Map<string, { hostname: string | null; expiresAt: number }>;
 };
 /** On globalThis: the proxy and the routes that change domains are separate bundles */
 const hostCache = globalForHosts.__platformHostCache ??= new Map();
+const primaryHostCache = globalForHosts.__platformPrimaryHostCache ??= new Map();
 
 export function normalizeHostname(host: string | null): string | null {
   if (!host) return null;
@@ -59,6 +61,28 @@ export async function resolveTenantByHost(host: string | null): Promise<string |
   const tenantId = await lookupTenantByHostname(hostname);
   hostCache.set(hostname, { tenantId, expiresAt: Date.now() + HOST_CACHE_TTL_MS });
   return tenantId;
+}
+
+/** Drop a site's cached primary domain after it changed (this instance only) */
+export function forgetPrimaryHost(tenantId: string): void {
+  primaryHostCache.delete(tenantId);
+}
+
+/**
+ * The custom domain a site's other hostnames redirect to, or null when the
+ * site has none set (it is then served on all of them).
+ */
+export async function resolvePrimaryHost(tenantId: string): Promise<string | null> {
+  const cached = primaryHostCache.get(tenantId);
+  if (cached && cached.expiresAt > Date.now()) return cached.hostname;
+
+  const { rows } = await getPlatformPool().query(
+    `select hostname from ${PLATFORM_SCHEMA}.domains where tenant_id = $1 and is_primary and verified_at is not null`,
+    [tenantId],
+  );
+  const hostname: string | null = rows[0]?.hostname ?? null;
+  primaryHostCache.set(tenantId, { hostname, expiresAt: Date.now() + HOST_CACHE_TTL_MS });
+  return hostname;
 }
 
 export interface BuilderAccess {

@@ -10,7 +10,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { isMultiTenant } from '@/lib/database/tenancy';
 import { findTenantByMcpToken } from './mcp';
 import { getSiteSlug } from './sites';
-import { normalizeHostname, resolveBuilderAccess, resolveTenantByHost } from './tenants';
+import { normalizeHostname, resolveBuilderAccess, resolvePrimaryHost, resolveTenantByHost } from './tenants';
 
 export interface PlatformRouting {
   /** Respond directly (unauthenticated, unknown site, ...) */
@@ -46,9 +46,25 @@ function isCrossOriginWrite(request: NextRequest): boolean {
   return Boolean(origin) && origin !== getBuilderOrigin(request);
 }
 
+/**
+ * A site with a primary domain is served there only: its other hostnames
+ * redirect permanently. Browsers keep the redirect for an hour, so a later
+ * change of the primary domain reaches returning visitors.
+ */
+async function redirectToPrimaryHost(request: NextRequest, tenantId: string, host: string | null): Promise<NextResponse | null> {
+  const primary = await resolvePrimaryHost(tenantId);
+  if (!primary || normalizeHostname(host) === primary) return null;
+
+  const protocol = request.headers.get('x-forwarded-proto') === 'http' ? 'http' : 'https';
+  const target = `${protocol}://${primary}${request.nextUrl.pathname}${request.nextUrl.search}`;
+  const response = NextResponse.redirect(target, 301);
+  response.headers.set('Cache-Control', 'public, max-age=3600');
+  return response;
+}
+
 export async function resolvePlatformRequest(
   request: NextRequest,
-  route: { protectedRoute: boolean; builderPage: boolean; publicPage: boolean; publicApi: boolean },
+  route: { protectedRoute: boolean; builderPage: boolean; publicPage: boolean; publicApi: boolean; siteContent?: boolean },
 ): Promise<PlatformRouting> {
   const multiTenant = isMultiTenant();
   const { pathname } = request.nextUrl;
@@ -109,6 +125,11 @@ export async function resolvePlatformRequest(
   if (!tenantId && pathname.startsWith('/a/') && isBuilderHost(host)) {
     const access = await resolveBuilderAccess(request.headers);
     return { tenantId: access?.tenantId ?? null };
+  }
+
+  if (tenantId && route.siteContent && SAFE_METHODS.has(request.method)) {
+    const redirect = await redirectToPrimaryHost(request, tenantId, host);
+    if (redirect) return { response: redirect, tenantId: null };
   }
 
   if (!tenantId && route.publicPage) {

@@ -77,6 +77,8 @@ export interface PlatformDomain {
   id: string;
   hostname: string;
   verified: boolean;
+  /** The site's other hostnames redirect here */
+  primary: boolean;
   records: PlatformDnsRecord[];
 }
 
@@ -108,6 +110,10 @@ export function addSiteDomain(siteId: string, hostname: string) {
 
 export function verifySiteDomain(siteId: string, domainId: string) {
   return domainRequest<PlatformDomainCheck>(`${siteId}/domains/${domainId}/verify`, { method: 'POST' });
+}
+
+export function setPrimarySiteDomain(siteId: string, domainId: string, primary: boolean) {
+  return domainRequest<PlatformDomain>(`${siteId}/domains/${domainId}`, { method: 'PATCH', body: JSON.stringify({ primary }) });
 }
 
 export function removeSiteDomain(siteId: string, domainId: string) {

@@ -2,7 +2,7 @@
 
 /**
  * Custom domains of a site: add, see the DNS records to create, verify,
- * remove. Shown on /ycode/sites to site owners and admins.
+ * make one primary, remove. Shown on /ycode/sites to site owners and admins.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -14,6 +14,7 @@ import {
   addSiteDomain,
   fetchSiteDomains,
   removeSiteDomain,
+  setPrimarySiteDomain,
   verifySiteDomain,
   type PlatformDomain,
 } from '@/lib/platform/browser-sites';
@@ -71,6 +72,15 @@ export default function SiteDomains({ siteId }: { siteId: string }) {
     await load();
   };
 
+  const togglePrimary = async (domain: PlatformDomain) => {
+    setPending(domain.id);
+    setError(null);
+    const result = await setPrimarySiteDomain(siteId, domain.id, !domain.primary);
+    setPending(null);
+    if (result.error) setError(result.error);
+    await load();
+  };
+
   const remove = async (domain: PlatformDomain) => {
     if (!window.confirm(`Remove ${domain.hostname} from this site?`)) return;
     setPending(domain.id);
@@ -96,8 +106,18 @@ export default function SiteDomains({ siteId }: { siteId: string }) {
               <span className={`ml-2 text-[10px] ${domain.verified ? 'text-green-400' : 'text-amber-400'}`}>
                 {domain.verified ? 'verified' : 'pending verification'}
               </span>
+              {domain.primary && <span className="ml-2 text-[10px] text-sky-400">primary</span>}
             </div>
             <div className="flex gap-2 shrink-0">
+              {domain.verified && (
+                <Button
+                  size="sm" variant="secondary"
+                  onClick={() => togglePrimary(domain)} disabled={pending !== null}
+                  title={domain.primary ? undefined : 'Redirect the site\'s other addresses here'}
+                >
+                  {domain.primary ? 'Unset primary' : 'Make primary'}
+                </Button>
+              )}
               <Button
                 size="sm" variant="secondary"
                 onClick={() => verify(domain)} disabled={pending !== null}
@@ -114,6 +134,9 @@ export default function SiteDomains({ siteId }: { siteId: string }) {
           </div>
 
           {messages[domain.id] && <p className="text-xs text-white/60">{messages[domain.id]}</p>}
+          {domain.primary && (
+            <p className="text-xs text-white/60">The site&apos;s other addresses redirect here.</p>
+          )}
 
           <table className="w-full text-[11px] text-white/60">
             <thead>
