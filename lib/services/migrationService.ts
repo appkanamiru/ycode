@@ -3,6 +3,7 @@ import { migrations } from '../migrations-loader';
 import { TENANT_SETTING } from '../database/pg-client/client';
 import { ensurePostgresCompat } from '../database/postgres-compat';
 import { applyTenancy, isMultiTenant, TEMPLATE_TENANT_ID } from '../database/tenancy';
+import { applySiteDefaults } from '../platform/site-defaults';
 import { migratePlatform } from '../platform/auth';
 
 /**
@@ -131,6 +132,7 @@ export async function runMigrations(): Promise<MigrationResult> {
     // Scope tables and unique indexes added by this batch to tenants
     if (isMultiTenant()) {
       await applyTenancy(knex);
+      await applySiteDefaults(knex);
     }
 
     // Accounts, organizations (tenants) and domains
