@@ -6,6 +6,7 @@ import { Layer, FieldVariable, CollectionVariable, CollectionItemWithValues, Col
 import { escapeHtml } from '@/lib/escape-html';
 import { generateId } from '@/lib/utils';
 import { resolveInlineVariablesFromData } from '@/lib/inline-variables';
+import { DEFAULT_VALUE_FORMAT, type ValueFormat } from '@/lib/value-format';
 import { DEFAULT_TEXT_STYLES } from '@/lib/text-format-utils';
 import { getCmsFieldBinding, isRichTextEmpty } from '@/lib/tiptap-utils';
 import { applyComponentOverrides } from '@/lib/resolve-components';
@@ -1632,15 +1633,15 @@ export function resolveFieldValue(
 export function getTextWithBinding(
   layer: Layer,
   collectionItemData?: Record<string, string>,
-  timezone: string = 'UTC'
+  valueFormat: ValueFormat = DEFAULT_VALUE_FORMAT
 ): string | undefined {
   // Check variables.text (DynamicTextVariable with inline variables)
   const textVariable = layer.variables?.text;
   if (textVariable && textVariable.type === 'dynamic_text') {
     const content = textVariable.data.content;
     if (content.includes('<ycode-inline-variable>')) {
-      // Resolve inline variables with timezone-aware date formatting
-      return resolveInlineVariablesFromData(content, collectionItemData, null, timezone);
+      // Resolve inline variables with timezone- and language-aware formatting
+      return resolveInlineVariablesFromData(content, collectionItemData, null, valueFormat);
     }
     return content;
   }

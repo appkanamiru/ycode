@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { formatFieldValue } from './cms-variables-utils';
+import { resolveInlineVariablesFromData } from './inline-variables';
 import { formatDateFieldsInItemValues, formatDateInTimezone, formatDateOnly } from './date-format-utils';
 import {
   DATE_FORMAT_SECTIONS,
@@ -82,4 +83,12 @@ test('format previews follow the locale', () => {
   assert.equal(getDateFormatPreview(dateLong, 'cs'), '7. dubna 2026');
   assert.equal(getDateFormatPreview(dateLong), 'April 7, 2026');
   assert.ok(NUMBER_FORMAT_SECTIONS.length > 0);
+});
+
+test('inline variables are formatted in the language of the page', () => {
+  const tag = '<ycode-inline-variable>{"type":"field","data":{"field_id":"published","field_type":"date","format":"date-long"}}</ycode-inline-variable>';
+  const values = { published: DATE };
+  assert.equal(resolveInlineVariablesFromData(`Vydáno ${tag}`, values, null, { timezone: TZ, locale: 'cs' }), 'Vydáno 26. března 2026');
+  assert.equal(resolveInlineVariablesFromData(`Published ${tag}`, values, null, { timezone: TZ, locale: 'en' }), 'Published March 26, 2026');
+  assert.equal(resolveInlineVariablesFromData(`Published ${tag}`, values), 'Published March 26, 2026');
 });
