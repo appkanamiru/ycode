@@ -204,6 +204,7 @@ const LayerRendererPublic: React.FC<LayerRendererPublicProps> = ({
                 pageCollectionItemId={pageCollectionItemId}
                 pageCollectionSortedItemIds={pageCollectionSortedItemIds}
                 collectionLayer={layer._filterConfig?.collectionLayer || layer._paginationMeta!.collectionLayer}
+                localeCode={currentLocale?.code}
               >
                 {content}
               </LoadMoreCollection>
@@ -242,6 +243,7 @@ const LayerRendererPublic: React.FC<LayerRendererPublicProps> = ({
               pageCollectionItemId={pageCollectionItemId}
               pageCollectionSortedItemIds={pageCollectionSortedItemIds}
               collectionLayer={layer._filterConfig!.collectionLayer}
+              localeCode={currentLocale?.code}
             >
               {content}
             </FilterableCollection>

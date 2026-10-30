@@ -244,6 +244,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
                 itemIds={layer._paginationMeta!.itemIds}
                 layerTemplate={layer._paginationMeta!.layerTemplate}
                 collectionLayer={layer._filterConfig?.collectionLayer || layer._paginationMeta!.collectionLayer}
+                localeCode={currentLocale?.code}
               >
                 {content}
               </LoadMoreCollection>
@@ -281,6 +282,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
               collectionLayerTag={layer._filterConfig!.collectionLayerTag}
               isPublished={layer._filterConfig!.isPublished}
               collectionLayer={layer._filterConfig!.collectionLayer}
+              localeCode={currentLocale?.code}
             >
               {content}
             </FilterableCollection>

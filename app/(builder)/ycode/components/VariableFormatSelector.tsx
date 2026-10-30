@@ -17,6 +17,8 @@ import {
 import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
 import { cn } from '@/lib/utils';
+import { resolveFormatLocale } from '@/lib/value-format';
+import { useLocalisationStore } from '@/stores/useLocalisationStore';
 import {
   getFormatSectionsForFieldType,
   getDateFormatPreview,
@@ -39,11 +41,11 @@ interface VariableFormatSelectorProps {
   children?: React.ReactNode;
 }
 
-function getPreview(preset: DateFormatPreset | NumberFormatPreset): string {
+function getPreview(preset: DateFormatPreset | NumberFormatPreset, locale?: string): string {
   if ('sample' in preset) {
-    return getNumberFormatPreview(preset);
+    return getNumberFormatPreview(preset, locale);
   }
-  return getDateFormatPreview(preset);
+  return getDateFormatPreview(preset, locale);
 }
 
 export default function VariableFormatSelector({
@@ -55,6 +57,11 @@ export default function VariableFormatSelector({
 }: VariableFormatSelectorProps) {
   const [open, setOpen] = useState(false);
   const sections = getFormatSectionsForFieldType(fieldType);
+  // Previews in the language selected on the canvas, as the values render there
+  const previewLocale = useLocalisationStore((state) => resolveFormatLocale(
+    state.locales.find((locale) => locale.id === state.selectedLocaleId),
+    state.locales,
+  ));
 
   const handleSelect = useCallback((formatId: string) => {
     onFormatChange(formatId);
@@ -124,7 +131,7 @@ export default function VariableFormatSelector({
                   onClick={() => handleSelect(preset.id)}
                 >
                   <span className="flex-1 truncate">
-                    {getPreview(preset)}
+                    {getPreview(preset, previewLocale)}
                     {getDetail(preset) && (
                       <span className="text-muted-foreground ml-1.5">{getDetail(preset)}</span>
                     )}
