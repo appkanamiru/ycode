@@ -3,7 +3,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import type { CollectionFieldData, CollectionFieldType, CollectionSorting } from '@/types';
 import { getAllCollections, createCollection, updateCollection, deleteCollection } from '@/lib/repositories/collectionRepository';
-import { diffFieldOptions } from '@/lib/collection-field-utils';
+import { diffFieldOptions, getNewCollectionFields } from '@/lib/collection-field-utils';
 import {
   getFieldById,
   getFieldsByCollectionId,
@@ -83,14 +83,19 @@ export function registerCollectionTools(server: McpServer) {
 
   server.tool(
     'create_collection',
-    'Create a new CMS collection. After creating, use add_collection_field to define its schema.',
+    `Create a new CMS collection. Like the editor, it starts with the built-in fields
+ID, Status, Name, Slug, Created Date and Updated Date (returned in \`fields\`).
+Use add_collection_field for the rest of its schema.`,
     {
       name: z.string().describe('Collection name (e.g. "Blog Posts", "Team Members")'),
       sorting: sortingSchema.optional(),
     },
     async ({ name, sorting }) => {
       const collection = await createCollection({ name, sorting: sorting as CollectionSorting | undefined });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(collection) }] };
+      const fields = await Promise.all(
+        getNewCollectionFields().map((field) => createField({ ...field, collection_id: collection.id })),
+      );
+      return { content: [{ type: 'text' as const, text: JSON.stringify({ ...collection, fields }) }] };
     },
   );
 
