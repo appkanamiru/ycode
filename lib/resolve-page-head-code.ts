@@ -22,6 +22,7 @@ import { parsePathnameForPageHead } from '@/lib/page-head-path';
 import { getDraftLayers, getPublishedLayers } from '@/lib/repositories/pageLayersRepository';
 import { resolveCustomCodePlaceholders } from '@/lib/resolve-cms-variables';
 import { getDbClient } from '@/lib/database/pg-client';
+import { runInTenantContext } from '@/lib/supabase-server';
 
 import type { HreflangAlternate } from '@/lib/hreflang-utils';
 import type { CollectionField, CollectionItemWithValues, Page } from '@/types';
@@ -207,8 +208,15 @@ export async function resolvePageDocumentChrome(
   const isPublished = !isPreview;
   const { tenantId } = options;
 
+  // Nested lookups (settings, collections) read the tenant from this context:
+  // request headers are not readable inside unstable_cache
+  const load = (published: boolean) => runInTenantContext(
+    tenantId,
+    () => loadPageDocumentChrome(slugPath, published, errorCode, options),
+  );
+
   if (isPreview) {
-    return loadPageDocumentChrome(slugPath, false, errorCode, options);
+    return load(false);
   }
 
   const cacheKey = errorCode != null ? `error-${errorCode}` : (slugPath || '/');
@@ -217,7 +225,7 @@ export async function resolvePageDocumentChrome(
     : buildRouteTag(tenantId, slugPath);
 
   return unstable_cache(
-    () => loadPageDocumentChrome(slugPath, true, errorCode, options),
+    () => load(true),
     ['page-document-chrome-v2', cacheKey, tenantId ?? 'default'],
     { tags: [routeTag, buildAllPagesTag(tenantId)], revalidate: false }
   )();

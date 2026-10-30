@@ -54,6 +54,7 @@ export default async function SiteLayout({
     <SiteDocumentLayout
       lang={lang}
       pathname={pathname}
+      tenantId={tenantId ?? undefined}
       baseUrl={baseUrl}
       publishedAt={globalSettings?.publishedAt ?? null}
       globalCustomCodeHead={globalSettings?.globalCustomCodeHead ?? null}
