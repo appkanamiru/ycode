@@ -17,7 +17,7 @@ import {
   buildFieldData,
   dynamicVariableNode,
   FORMAT_DESCRIPTION,
-  getFieldFormatError,
+  getSiteFieldFormatError,
   paragraphDoc,
   resolveBindingContext,
 } from '@/lib/mcp/field-binding';
@@ -391,7 +391,7 @@ or on a dynamic CMS page (source "page").`,
         if (!field) {
           return { content: [{ type: 'text' as const, text: `Error: Field "${seg.field_id}" not found in the ${source === 'page' ? 'page' : 'list'} collection.` }], isError: true };
         }
-        const formatError = getFieldFormatError(field, seg.format);
+        const formatError = await getSiteFieldFormatError(field, seg.format);
         if (formatError) {
           return { content: [{ type: 'text' as const, text: `Error: ${formatError}` }], isError: true };
         }
