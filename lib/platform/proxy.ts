@@ -104,6 +104,13 @@ export async function resolvePlatformRequest(
 
   const tenantId = await resolveTenantByHost(host);
 
+  // The editor shows the active site's images through the asset proxy (/a/)
+  // on its own host; asset ids are unique across sites
+  if (!tenantId && pathname.startsWith('/a/') && isBuilderHost(host)) {
+    const access = await resolveBuilderAccess(request.headers);
+    return { tenantId: access?.tenantId ?? null };
+  }
+
   if (!tenantId && route.publicPage) {
     if (isBuilderHost(host)) {
       return { response: NextResponse.redirect(new URL('/ycode', request.url)), tenantId: null };
