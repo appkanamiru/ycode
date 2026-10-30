@@ -36,12 +36,13 @@ export default async function SiteLayout({
 }: Readonly<{
   children: ReactNode;
 }>) {
-  const headersList = await headers();
+  const [headersList, tenantId] = await Promise.all([headers(), getTenantIdFromHeaders()]);
   const pathname = headersList.get('x-pathname') || '/';
   const { isPreview, slugPath } = parsePathnameForPageHead(pathname);
 
   const [lang, globalSettings] = await Promise.all([
-    resolveHtmlLang(slugPath, !isPreview),
+    // The site's locales (multi-tenant: the cached lookup cannot read the request's tenant itself)
+    resolveHtmlLang(slugPath, !isPreview, tenantId ?? undefined),
     fetchGlobalPageSettings(isPreview).catch(() => null),
   ]);
 
