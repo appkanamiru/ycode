@@ -4,15 +4,18 @@
 
 import type { CollectionField } from '@/types';
 import { isDateFieldType } from '@/lib/collection-field-utils';
+import { toIntlLocale } from '@/lib/value-format';
 
 /**
  * Format a UTC date in the specified timezone
- * Uses Intl.DateTimeFormat for timezone conversion
+ * Uses Intl.DateTimeFormat for timezone conversion. `locale` sets the
+ * language of the 'display' format (English when not given).
  */
 export function formatDateInTimezone(
   date: string | Date | null | undefined,
   timezone: string = 'UTC',
-  format: 'display' | 'datetime-local' | 'date' = 'display'
+  format: 'display' | 'datetime-local' | 'date' = 'display',
+  locale?: string
 ): string {
   if (!date) return '';
 
@@ -22,7 +25,7 @@ export function formatDateInTimezone(
   try {
     if (format === 'display') {
       // Format for display: "Nov 12 2025, 09:38"
-      return new Intl.DateTimeFormat('en-US', {
+      return new Intl.DateTimeFormat(toIntlLocale(locale), {
         timeZone: timezone,
         month: 'short',
         day: 'numeric',
@@ -190,13 +193,13 @@ export function clampDateInputValue(value: string): string {
   return clamped + timeSuffix;
 }
 
-/** Format a date_only value for display (no time, no timezone) */
-export function formatDateOnly(value: string): string {
+/** Format a date_only value for display (no time, no timezone), in `locale` (English when not given) */
+export function formatDateOnly(value: string, locale?: string): string {
   const dateStr = value.slice(0, 10);
   const [year, month, day] = dateStr.split('-').map(Number);
   if (!year || !month || !day) return value;
   const date = new Date(year, month - 1, day);
-  return new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat(toIntlLocale(locale), {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
