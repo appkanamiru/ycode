@@ -2324,7 +2324,7 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
       <div className="flex-1 flex overflow-hidden">
         {/* Settings Route - Render Settings Content */}
         {routeType === 'settings' ? (
-          <SettingsContent>{children}</SettingsContent>
+          <SettingsContent multiTenant={multiTenant}>{children}</SettingsContent>
         ) : routeType === 'localization' ? (
           <LocalizationContent>{children}</LocalizationContent>
         ) : routeType === 'profile' ? (
