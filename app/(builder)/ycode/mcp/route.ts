@@ -7,6 +7,7 @@ import {
   addCorsHeaders,
   buildWwwAuthenticateHeader,
 } from '@/lib/mcp/handler';
+import { getMcpSiteOptions } from '@/lib/platform/mcp-site';
 import { getBaseUrl } from '@/lib/oauth/metadata';
 
 export const dynamic = 'force-dynamic';
@@ -60,7 +61,7 @@ async function authorize(request: NextRequest): Promise<Response | null> {
 export async function POST(request: NextRequest) {
   const denied = await authorize(request);
   if (denied) return denied;
-  return handleMcpPost(request);
+  return handleMcpPost(request, await getMcpSiteOptions());
 }
 
 export async function GET(request: NextRequest) {
