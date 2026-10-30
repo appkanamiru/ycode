@@ -30,6 +30,14 @@ app.appkanamiru.cz, *.appkanamiru.cz {
 	}
 }
 
+# The bare domain and www are not sites: send visitors to the editor
+appkanamiru.cz, www.appkanamiru.cz {
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+	}
+	redir https://app.appkanamiru.cz/ycode 302
+}
+
 # Customers' own domains
 https:// {
 	tls {
