@@ -64,7 +64,7 @@ async function redirectToPrimaryHost(request: NextRequest, tenantId: string, hos
 
 export async function resolvePlatformRequest(
   request: NextRequest,
-  route: { protectedRoute: boolean; builderPage: boolean; publicPage: boolean; publicApi: boolean; siteContent?: boolean },
+  route: { protectedRoute: boolean; builderPage: boolean; publicPage: boolean; publicApi: boolean; siteContent?: boolean; siteFile?: boolean },
 ): Promise<PlatformRouting> {
   const multiTenant = isMultiTenant();
   const { pathname } = request.nextUrl;
@@ -130,6 +130,15 @@ export async function resolvePlatformRequest(
   if (tenantId && route.siteContent && SAFE_METHODS.has(request.method)) {
     const redirect = await redirectToPrimaryHost(request, tenantId, host);
     if (redirect) return { response: redirect, tenantId: null };
+  }
+
+  // robots.txt, sitemap.xml, ... belong to a site: none on unknown hosts, and
+  // the editor's host is not indexed
+  if (!tenantId && route.siteFile) {
+    if (isBuilderHost(host) && pathname === '/robots.txt') {
+      return { response: new NextResponse('User-agent: *\nDisallow: /\n', { headers: { 'Content-Type': 'text/plain' } }), tenantId: null };
+    }
+    return { response: new NextResponse('Not found', { status: 404 }), tenantId: null };
   }
 
   if (!tenantId && route.publicPage) {

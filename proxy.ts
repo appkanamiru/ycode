@@ -24,11 +24,15 @@ const PUBLIC_API_PREFIXES = [
  */
 const PUBLIC_COLLECTION_ITEM_SUFFIXES = ['/items/filter', '/items/load-more'];
 
+/** Per-site files at the root: generated from the site's settings */
+const SITE_SEO_FILES = ['/robots.txt', '/sitemap.xml', '/llms.txt', '/favicon.ico'];
+
 /**
  * Static files in public/: at the root (canvas and slider styles, default
- * icons) and under /ycode (not API, storage or builder routes)
+ * icons; not the per-site favicon.ico) and under /ycode (not API, storage
+ * or builder routes)
  */
-const PUBLIC_FILE = /^\/(?:[\w\-.]+|ycode\/(?!api\/|storage\/)[\w\-/]+)\.(webp|png|jpe?g|gif|svg|avif|ico|woff2?|css)$/i;
+const PUBLIC_FILE = /^\/(?:(?!favicon\.ico$)[\w\-.]+|ycode\/(?!api\/|storage\/)[\w\-/]+)\.(webp|png|jpe?g|gif|svg|avif|ico|woff2?|css)$/i;
 
 const PUBLIC_API_EXACT = [
   '/ycode/api/revalidate', // Cache revalidation — has own secret token auth
@@ -207,9 +211,10 @@ export async function proxy(request: NextRequest) {
 
   // Route handlers served on site domains that are not pages (assets, SEO
   // files, well-known endpoints such as the OAuth discovery for MCP clients)
+  const isSiteSeoFile = SITE_SEO_FILES.includes(pathname);
   const isSiteFileRoute = pathname.startsWith('/a/')
     || pathname.startsWith('/.well-known/')
-    || ['/robots.txt', '/sitemap.xml', '/llms.txt'].includes(pathname);
+    || isSiteSeoFile;
 
   // Files from public/ (editor canvas and slider styles, layout previews and
   // the images layouts insert into pages) are the same for everyone: served on
@@ -229,6 +234,7 @@ export async function proxy(request: NextRequest) {
       publicPage: (isPublicPage && !isSiteFileRoute) || pathname.startsWith('/dynamic'),
       // Pages and SEO files move to the site's primary domain; assets and well-known endpoints stay
       siteContent: isPublicPage && !pathname.startsWith('/a/') && !pathname.startsWith('/.well-known/'),
+      siteFile: isSiteSeoFile,
     });
     if (routing.response) return routing.response;
     tenantId = routing.tenantId;
@@ -287,8 +293,8 @@ export const config = {
      * Match all request paths except:
      * - _next/static (static files)
      * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
+     * favicon.ico is per site, so it goes through the proxy too
      */
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image).*)',
   ],
 };
