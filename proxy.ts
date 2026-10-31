@@ -24,6 +24,21 @@ const PUBLIC_API_PREFIXES = [
  */
 const PUBLIC_COLLECTION_ITEM_SUFFIXES = ['/items/filter', '/items/load-more'];
 
+/**
+ * Well-known endpoints that exist (app/.well-known, app/(site)/.well-known).
+ * Other /.well-known/ paths are a plain 404: they would otherwise reach the
+ * page routes, which can't render them.
+ */
+const WELL_KNOWN_ROUTES = [
+  '/.well-known/oauth-authorization-server',
+  '/.well-known/oauth-protected-resource',
+  '/.well-known/security.txt',
+];
+
+function isKnownWellKnownPath(pathname: string): boolean {
+  return WELL_KNOWN_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+}
+
 /** Per-site files at the root: generated from the site's settings */
 const SITE_SEO_FILES = ['/robots.txt', '/sitemap.xml', '/llms.txt', '/favicon.ico'];
 
@@ -215,6 +230,10 @@ export async function proxy(request: NextRequest) {
   const isSiteFileRoute = pathname.startsWith('/a/')
     || pathname.startsWith('/.well-known/')
     || isSiteSeoFile;
+
+  if (pathname.startsWith('/.well-known/') && !isKnownWellKnownPath(pathname)) {
+    return new NextResponse('Not found', { status: 404 });
+  }
 
   // Files from public/ (editor canvas and slider styles, layout previews and
   // the images layouts insert into pages) are the same for everyone: served on
