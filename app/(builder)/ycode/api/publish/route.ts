@@ -14,7 +14,7 @@ import {
   invalidateForLocalisationChanges,
 } from '@/lib/services/cacheService';
 import { findAffectedPages, findCollectionsEmbeddingComponents, getEmbeddedComponentIdsForCollections } from '@/lib/repositories/pageLayersRepository';
-import { dispatchSitePublishedEvent } from '@/lib/services/webhookService';
+import { reportSitePublished } from '@/lib/services/siteEvents';
 import { getAllDraftPages, hardDeleteSoftDeletedPages, backfillMissingPageHashes } from '@/lib/repositories/pageRepository';
 import { publishComponents, getUnpublishedComponents, hardDeleteSoftDeletedComponents } from '@/lib/repositories/componentRepository';
 import { publishLayerStyles, getUnpublishedLayerStyles, hardDeleteSoftDeletedLayerStyles } from '@/lib/repositories/layerStyleRepository';
@@ -917,16 +917,12 @@ export async function POST(request: NextRequest) {
     // Dispatch the site.published webhook event. The dispatcher is the only
     // path that delivers to user-configured webhooks for this event type
     // (advertised in the Integrations → Webhooks UI), so without this call
-    // any "Site Published" subscription silently never fires. Wrapped so
-    // webhook failures never block the publish response.
-    try {
-      await dispatchSitePublishedEvent({
-        pages_count: result.changes.pages,
-        collections_count: result.changes.collectionItems,
-      });
-    } catch {
-      // Silently handle — webhook failures must not break a successful publish
-    }
+    // any "Site Published" subscription silently never fires. Not awaited,
+    // so slow or failing receivers never delay the publish response.
+    void reportSitePublished(
+      { pages: result.changes.pages, collectionItems: result.changes.collectionItems },
+      publishedPageIds,
+    );
 
     // Calculate total duration
     stats.totalDurationMs = Math.round(performance.now() - startTime);

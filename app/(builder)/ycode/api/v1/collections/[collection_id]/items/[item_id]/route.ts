@@ -8,6 +8,7 @@ import { getDbClient } from '@/lib/database/pg-client';
 import { invalidateForCollectionChange } from '@/lib/services/cacheService';
 import type { CollectionField, CollectionItemWithValues } from '@/types';
 import { transformItemToPublicWithRefs, parseFieldProjections } from '../../../../reference-resolver';
+import { prepareCollectionItemsDeleted, reportCollectionItemChanged, reportCollectionItemsDeleted } from '@/lib/services/siteEvents';
 
 /**
  * Pull the current slug value off an item before mutation/delete, so we can
@@ -205,6 +206,8 @@ export async function PUT(
     await setValues(item_id, valuesToSet, true);
     await setValues(item_id, valuesToSet, false);
 
+    void reportCollectionItemChanged('updated', collection_id, item_id);
+
     // Get updated item and transform with resolved references
     const updatedItem = await getItemWithValues(item_id, true);
     const response = await transformItemToPublicWithRefs(
@@ -341,6 +344,8 @@ export async function PATCH(
       await setValues(item_id, valuesToSet, false);
     }
 
+    void reportCollectionItemChanged('updated', collection_id, item_id);
+
     // Get updated item and transform with resolved references
     const updatedItem = await getItemWithValues(item_id, true);
     const response = await transformItemToPublicWithRefs(
@@ -414,9 +419,12 @@ export async function DELETE(
     const fields = await getFieldsByCollectionId(collection_id, true, { excludeComputed: true });
     const previousSlug = extractItemSlug(existingItem, fields);
 
+    const deleted = await prepareCollectionItemsDeleted([item_id]);
+
     // Delete both published and draft items
     await deleteItem(item_id, true);
     await deleteItem(item_id, false);
+    void reportCollectionItemsDeleted(deleted);
 
     try {
       const result = await invalidateForCollectionChange(collection_id, {

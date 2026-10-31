@@ -3,6 +3,7 @@ import { getAssetById, updateAsset, deleteAsset } from '@/lib/repositories/asset
 import { noCache } from '@/lib/api-response';
 import { cleanSvgContent, isValidSvg } from '@/lib/file-upload';
 import { cleanupAssetReferences } from '@/lib/asset-usage-utils';
+import { reportAssetEvent } from '@/lib/services/siteEvents';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -153,6 +154,7 @@ export async function DELETE(
 
     // Delete the asset (removes from storage and database)
     await deleteAsset(id);
+    void reportAssetEvent('deleted', asset);
 
     return noCache(
       { data: { success: true, cleanup: cleanupResult } },

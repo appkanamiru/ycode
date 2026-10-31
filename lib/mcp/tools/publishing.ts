@@ -17,6 +17,7 @@ import { publishFolders } from '@/lib/services/folderService';
 import { publishCSS, savePublishedAt } from '@/lib/services/settingsService';
 import { generateAndSaveDraftCSS } from '@/lib/server/cssGenerator';
 import { clearAllCache } from '@/lib/services/cacheService';
+import { reportSitePublished } from '@/lib/services/siteEvents';
 
 /** Count draft locales not yet present in the published set (new languages awaiting publish). */
 async function countUnpublishedLocales(): Promise<number> {
@@ -97,12 +98,14 @@ did not go live.`,
       } catch { changes.folders = 0; }
 
       // Publish all draft pages
+      const publishedPageIds: string[] = [];
       try {
         const draftPages = await getAllDraftPages();
         if (draftPages.length > 0) {
           const result = await publishPages(draftPages.map((p) => p.id));
           // `count` covers page-row changes only; layer-only edits show up in changedPageIds
           changes.pages = result.changedPageIds.length;
+          publishedPageIds.push(...result.changedPageIds);
         } else {
           changes.pages = 0;
         }
@@ -207,6 +210,12 @@ did not go live.`,
       // builder's HTTP publish endpoint warms after publish — this AI tool
       // path is rare enough that a cold next-visit is acceptable.
       try { await clearAllCache(); } catch { /* non-fatal */ }
+
+      // Same events as publishing from the editor (webhooks, Discord)
+      void reportSitePublished(
+        { pages: changes.pages ?? 0, collectionItems: changes.collection_items ?? 0 },
+        publishedPageIds,
+      );
 
       const total = Object.values(changes).reduce((sum, n) => sum + n, 0);
 

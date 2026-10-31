@@ -3,6 +3,7 @@ import { getDbClient } from '@/lib/database/pg-client';
 import { getSupabaseStorage } from '@/lib/supabase-storage';
 import { createAsset } from '@/lib/repositories/assetRepository';
 import { STORAGE_BUCKET, getDisplayName } from '@/lib/asset-constants';
+import { reportAssetEvent } from '@/lib/services/siteEvents';
 
 export const runtime = 'nodejs';
 
@@ -51,6 +52,7 @@ export async function POST(request: NextRequest) {
       asset_folder_id: assetFolderId,
     });
 
+    void reportAssetEvent('uploaded', asset);
     return NextResponse.json({ data: asset }, { status: 200 });
   } catch (error) {
     console.error('Error registering asset:', error);

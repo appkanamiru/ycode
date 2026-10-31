@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { uploadFile } from '@/lib/file-upload';
 import { getAllAssets, getAssetById, updateAsset, deleteAsset } from '@/lib/repositories/assetRepository';
+import { reportAssetEvent } from '@/lib/services/siteEvents';
 
 export function registerAssetTools(server: McpServer) {
   server.tool(
@@ -81,6 +82,7 @@ the markup in "content").`,
         if (!asset) {
           return { content: [{ type: 'text' as const, text: 'Error: Failed to upload asset' }], isError: true };
         }
+        void reportAssetEvent('uploaded', asset);
 
         return {
           content: [{
@@ -139,7 +141,9 @@ the markup in "content").`,
     'Delete an asset from the library',
     { asset_id: z.string().describe('The asset ID to delete') },
     async ({ asset_id }) => {
+      const deleted = await getAssetById(asset_id).catch(() => null);
       await deleteAsset(asset_id);
+      if (deleted) void reportAssetEvent('deleted', deleted);
       return { content: [{ type: 'text' as const, text: `Deleted asset ${asset_id}` }] };
     },
   );

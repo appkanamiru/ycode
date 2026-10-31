@@ -20,6 +20,7 @@ import {
 } from '@/lib/repositories/collectionItemRepository';
 import { clearValuesForField, renameValuesForField, setValuesByFieldName } from '@/lib/repositories/collectionItemValueRepository';
 import { coerceCollectionItemValues } from '@/lib/mcp/utils';
+import { prepareCollectionItemsDeleted, reportCollectionItemChanged, reportCollectionItemsDeleted } from '@/lib/services/siteEvents';
 
 const fieldTypeEnum = z.enum([
   'text', 'number', 'boolean', 'date', 'date_only',
@@ -185,6 +186,8 @@ Call list_collection_items first to get the collection's field IDs and types. Th
         await setValuesByFieldName(item.id, collection_id, coerced, fieldType);
       }
 
+      void reportCollectionItemChanged('created', collection_id, item.id);
+
       const { items: itemWithValues } = await getItemsWithValues(collection_id);
       const created = itemWithValues.find((i) => i.id === item.id);
 
@@ -218,6 +221,7 @@ Values are { fieldId: value } pairs (call list_collection_items for field IDs/ty
       }
       const coerced = coerceCollectionItemValues(values as Record<string, unknown>, fields);
       await setValuesByFieldName(item_id, collection_id, coerced, fieldType);
+      void reportCollectionItemChanged('updated', collection_id, item_id);
       return { content: [{ type: 'text' as const, text: `Updated item ${item_id}` }] };
     },
   );
@@ -230,7 +234,9 @@ Values are { fieldId: value } pairs (call list_collection_items for field IDs/ty
       item_id: z.string().describe('The item ID to delete'),
     },
     async ({ item_id }) => {
+      const deleted = await prepareCollectionItemsDeleted([item_id]);
       await deleteItem(item_id);
+      void reportCollectionItemsDeleted(deleted);
       return { content: [{ type: 'text' as const, text: `Deleted item ${item_id}` }] };
     },
   );

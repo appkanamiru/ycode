@@ -121,3 +121,14 @@ export async function getSiteMembership(userId: string, siteId: string): Promise
   );
   return rows[0] ?? null;
 }
+
+/** Where a site is served (see getSiteAddress), by its id */
+export async function getSiteAddressById(siteId: string): Promise<string | null> {
+  const { rows } = await getPlatformPool().query(
+    `select o.slug, d.hostname as primary_domain from ${PLATFORM_SCHEMA}.organization o
+     left join ${PLATFORM_SCHEMA}.domains d on d.tenant_id = o.id and d.is_primary and d.verified_at is not null
+     where o.id = $1`,
+    [siteId],
+  );
+  return rows[0] ? getSiteAddress(rows[0].slug, rows[0].primary_domain) : null;
+}

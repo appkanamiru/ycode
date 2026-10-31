@@ -6,6 +6,7 @@ import { getItemsWithValues, createItem, getMaxIdValue } from '@/lib/repositorie
 import { setValues } from '@/lib/repositories/collectionItemValueRepository';
 import { invalidateForCollectionChange } from '@/lib/services/cacheService';
 import { transformItemToPublicWithRefs, parseFieldProjections } from '../../../reference-resolver';
+import { reportCollectionItemChanged } from '@/lib/services/siteEvents';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -330,6 +331,8 @@ export async function POST(
 
     // Get the created item with values and transform with resolved references
     const { getItemWithValues } = await import('@/lib/repositories/collectionItemRepository');
+    void reportCollectionItemChanged('created', collection_id, item.id);
+
     const createdItem = await getItemWithValues(item.id, true);
     
     if (!createdItem) {

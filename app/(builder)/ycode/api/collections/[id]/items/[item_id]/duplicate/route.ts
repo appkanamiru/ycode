@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { duplicateItem, enrichSingleItemWithStatus } from '@/lib/repositories/collectionItemRepository';
 import { noCache } from '@/lib/api-response';
+import { reportCollectionItemChanged } from '@/lib/services/siteEvents';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -23,6 +24,7 @@ export async function POST(
 
     if (newItem) {
       await enrichSingleItemWithStatus(newItem, id);
+      void reportCollectionItemChanged('created', id, newItem.id);
     }
 
     return noCache(

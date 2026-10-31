@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { uploadFile } from '@/lib/file-upload';
 import { validateCategoryMimeType } from '@/lib/asset-utils';
 import { MAX_UPLOAD_FILE_SIZE } from '@/lib/asset-constants';
+import { reportAssetEvent } from '@/lib/services/siteEvents';
 
 export const runtime = 'nodejs';
 
@@ -50,6 +51,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 });
     }
 
+    void reportAssetEvent('uploaded', asset);
     return NextResponse.json({ data: asset }, { status: 200 });
   } catch (error) {
     console.error('Error uploading file:', error);
