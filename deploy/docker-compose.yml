@@ -30,6 +30,15 @@ x-app-environment: &app-environment
   UMAMI_PUBLIC_URL: ${UMAMI_PUBLIC_URL:?set UMAMI_PUBLIC_URL (e.g. https://stats.example.com)}
   UMAMI_ADMIN_PASSWORD: ${UMAMI_ADMIN_PASSWORD:?set UMAMI_ADMIN_PASSWORD}
 
+# Container logs are kept to 3 files of 20 MB each, instead of growing until
+# the disk is full
+x-logging: &logging
+  logging:
+    driver: json-file
+    options:
+      max-size: 20m
+      max-file: "3"
+
 x-app-image: &app-image
   build:
     context: ..
@@ -38,6 +47,7 @@ x-app-image: &app-image
 
 services:
   postgres:
+    <<: *logging
     image: postgres:16.15-alpine
     restart: unless-stopped
     environment:
@@ -54,6 +64,7 @@ services:
 
   # Realtime fan-out and presence; holds no data worth persisting
   redis:
+    <<: *logging
     image: redis:7.4.12-alpine
     restart: unless-stopped
     command: ["redis-server", "--save", "", "--appendonly", "no"]
@@ -65,7 +76,7 @@ services:
 
   # Runs pending migrations (and tenancy, platform schema), then exits
   migrate:
-    <<: *app-image
+    <<: [*logging, *app-image]
     command: ["npm", "run", "migrate:postgres"]
     environment: *app-environment
     restart: "no"
@@ -74,7 +85,7 @@ services:
         condition: service_healthy
 
   app:
-    <<: *app-image
+    <<: [*logging, *app-image]
     restart: unless-stopped
     environment: *app-environment
     volumes:
@@ -87,6 +98,7 @@ services:
 
   # Creates Umami's database and role in the shared Postgres, then exits
   umami-db:
+    <<: *logging
     image: postgres:16.15-alpine
     restart: "no"
     environment:
@@ -110,6 +122,7 @@ services:
 
   # Visitor statistics: dashboard on UMAMI_PUBLIC_URL, tracker on every site
   umami:
+    <<: *logging
     image: ghcr.io/umami-software/umami:3.4.0
     restart: unless-stopped
     init: true
@@ -127,6 +140,7 @@ services:
         condition: service_completed_successfully
 
   caddy:
+    <<: *logging
     # Caddy with the Cloudflare DNS module, for the wildcard certificate
     build: ./caddy
     image: ycode-caddy:2.11.7-cloudflare

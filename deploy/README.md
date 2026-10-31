@@ -75,8 +75,13 @@ the first visit, after asking the app whether the domain is verified.
 
 ## Operations
 
-- **Updates**: pull the new code and run the start command again; `migrate`
-  applies new migrations before the app starts.
+- **Updates**: `deploy/update.sh` pulls the code, rebuilds and restarts what
+  changed (`migrate` applies new migrations before the app starts), then
+  removes the previous images and build cache beyond `BUILD_CACHE_MAX`
+  (8GB): every app build adds gigabytes of it. As a safety net for manual
+  builds, also prune daily from cron:
+  `17 4 * * * docker builder prune -f --max-used-space 8GB > /dev/null 2>&1`
+- **Logs**: each container keeps 3 files of 20 MB (`docker compose -p ycode logs app`).
 - **Backups**: the `postgres-data` and `uploads` volumes, e.g.
   `docker compose -p ycode exec postgres pg_dump -U ycode ycode > backup.sql`
   and an archive of the `uploads` volume.
