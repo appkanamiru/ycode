@@ -3,7 +3,8 @@ import { getAuthUser } from '@/lib/supabase-auth';
 import { isRedirectUriRegistered, resolveOAuthClient } from '@/lib/oauth/resolve-client';
 import { createCode } from '@/lib/repositories/mcpOAuthCodeRepository';
 import { isMultiTenant } from '@/lib/database/tenancy';
-import { resolveResourceSite } from '@/lib/platform/mcp-site';
+import { createAccountCode } from '@/lib/platform/mcp-account';
+import { isAccountResource, resolveResourceSite } from '@/lib/platform/mcp-site';
 import { getSiteMembership } from '@/lib/platform/sites';
 import { runInTenantContext } from '@/lib/supabase-server';
 
@@ -116,12 +117,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ redirect_to: url });
   }
 
+  // The account-wide endpoint: the code belongs to the user, for all their sites
+  const resource = typeof body.resource === 'string' ? body.resource : null;
+  if (isAccountResource(resource)) {
+    const code = await createAccountCode({
+      userId: auth.user.id,
+      clientId,
+      redirectUri,
+      codeChallenge,
+      codeChallengeMethod,
+    });
+    const url = new URL(redirectUri);
+    url.searchParams.set('code', code);
+    if (state) url.searchParams.set('state', state);
+    return NextResponse.json({ redirect_to: url.toString() });
+  }
+
   // Multi-tenant: the code (and the tokens issued for it) belong to the site
   // the user picked, which they must be a member of
   let siteId: string | null = null;
   if (isMultiTenant()) {
     siteId = typeof body.site_id === 'string' ? body.site_id : null;
-    const resourceSite = await resolveResourceSite(typeof body.resource === 'string' ? body.resource : null);
+    const resourceSite = await resolveResourceSite(resource);
     if (resourceSite !== undefined && resourceSite !== siteId) {
       return NextResponse.json(
         { error: 'invalid_target', error_description: 'This connector is for another site' },

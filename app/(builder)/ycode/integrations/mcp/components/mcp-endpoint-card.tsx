@@ -5,22 +5,23 @@ import { useCopyToClipboard } from './use-copy-to-clipboard';
 
 interface McpEndpointCardProps {
   url: string;
+  title?: string;
+  description?: string;
 }
 
 /**
- * The single OAuth MCP endpoint for this site. Clients discover the OAuth
- * flow from the URL alone; the user signs in and approves when prompted.
+ * An OAuth MCP endpoint (this site's, or the account's). Clients discover the
+ * OAuth flow from the URL alone; the user signs in and approves when prompted.
  */
-export default function McpEndpointCard({ url }: McpEndpointCardProps) {
+export default function McpEndpointCard({ url, title = 'MCP server URL', description }: McpEndpointCardProps) {
   const { copied, copy } = useCopyToClipboard();
 
   return (
     <div className="flex flex-col gap-3 bg-secondary/20 p-5 rounded-lg">
       <div className="flex flex-col gap-1">
-        <span className="text-sm font-medium">MCP server URL</span>
+        <span className="text-sm font-medium">{title}</span>
         <p className="text-xs text-muted-foreground">
-          Paste this URL into your AI tool. You&apos;ll be asked to sign in to Ycode and approve
-          access the first time it connects — no keys to copy.
+          {description ?? 'Paste this URL into your AI tool. You\'ll be asked to sign in to Ycode and approve access the first time it connects — no keys to copy.'}
         </p>
       </div>
       <div className="flex items-center gap-2">

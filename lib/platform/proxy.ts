@@ -10,6 +10,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { isMultiTenant } from '@/lib/database/tenancy';
 import { isSitesApexHost } from './config';
 import { findTenantByMcpToken } from './mcp';
+import { ACCOUNT_MCP_PATH } from './mcp-account';
 import { getSiteSlug } from './sites';
 import { normalizeHostname, resolveBuilderAccess, resolvePrimaryHost, resolveTenantByHost } from './tenants';
 
@@ -165,6 +166,8 @@ export async function resolvePlatformRequest(
 export async function resolveMcpTenant(request: NextRequest): Promise<string | null> {
   if (!isMultiTenant()) return null;
   const host = request.headers.get('host');
+  // Account-wide connections pick their site per call (the route checks the token)
+  if (request.nextUrl.pathname === ACCOUNT_MCP_PATH) return null;
 
   const pathToken = request.nextUrl.pathname.match(/^\/ycode\/mcp\/([^/]+)/)?.[1];
   const bearerToken = request.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();

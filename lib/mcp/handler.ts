@@ -20,8 +20,11 @@ interface McpSession {
   transport: WebStandardStreamableHTTPServerTransport;
   server: McpServer;
   lastActivity: number;
-  /** Tenant the session was opened for (null on single-tenant installs) */
-  tenantId: string | null;
+  /**
+   * Who the session was opened for: its tenant (null on single-tenant
+   * installs), or a `sessionOwner` the hosting layer passes
+   */
+  owner: string | null;
 }
 
 const sessions = new Map<string, McpSession>();
@@ -29,13 +32,21 @@ const sessions = new Map<string, McpSession>();
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 
 /**
- * A session is only usable by requests of the tenant that opened it, so a
+ * Who a request's session must belong to: the request's tenant, unless the
+ * hosting layer names the owner (e.g. a user whose session spans tenants).
+ */
+async function resolveSessionOwner(sessionOwner?: string): Promise<string | null> {
+  return sessionOwner ?? await getTenantIdFromHeaders();
+}
+
+/**
+ * A session is only usable by requests of the owner that opened it, so a
  * session id cannot be replayed with another tenant's token.
  */
-async function findSession(sessionId: string | null): Promise<McpSession | undefined> {
+async function findSession(sessionId: string | null, sessionOwner?: string): Promise<McpSession | undefined> {
   const session = sessionId ? sessions.get(sessionId) : undefined;
   if (!session) return undefined;
-  return session.tenantId === await getTenantIdFromHeaders() ? session : undefined;
+  return session.owner === await resolveSessionOwner(sessionOwner) ? session : undefined;
 }
 
 function cleanupStaleSessions() {
@@ -86,13 +97,13 @@ export function addCorsHeaders(response: Response): Response {
   });
 }
 
-function createSessionTransport(tenantId: string | null, options?: CreateMcpServerOptions) {
+function createSessionTransport(owner: string | null, options?: CreateMcpServerOptions) {
   const server = createMcpServer(options);
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: () => randomUUID(),
     enableJsonResponse: true,
     onsessioninitialized: (newSessionId) => {
-      sessions.set(newSessionId, { transport, server, lastActivity: Date.now(), tenantId });
+      sessions.set(newSessionId, { transport, server, lastActivity: Date.now(), owner });
     },
   });
 
@@ -170,9 +181,9 @@ function ensureAcceptHeader(request: Request): Request {
   });
 }
 
-async function handlePost(request: Request, options?: CreateMcpServerOptions): Promise<Response> {
+async function handlePost(request: Request, options?: CreateMcpServerOptions, sessionOwner?: string): Promise<Response> {
   const normalized = ensureAcceptHeader(request);
-  const existing = await findSession(normalized.headers.get('mcp-session-id'));
+  const existing = await findSession(normalized.headers.get('mcp-session-id'), sessionOwner);
 
   if (existing) {
     existing.lastActivity = Date.now();
@@ -182,7 +193,7 @@ async function handlePost(request: Request, options?: CreateMcpServerOptions): P
   const body = await normalized.json();
   const isInit = !Array.isArray(body) && body.method === 'initialize';
 
-  const { server, transport } = createSessionTransport(await getTenantIdFromHeaders(), options);
+  const { server, transport } = createSessionTransport(await resolveSessionOwner(sessionOwner), options);
   await server.connect(transport);
 
   if (isInit) {
@@ -210,11 +221,13 @@ async function handlePost(request: Request, options?: CreateMcpServerOptions): P
 /**
  * @param options - Forwarded to `createMcpServer` for new sessions (hosted
  *   deployments use it to add tools / instructions without forking the handler).
+ * @param sessionOwner - Who the session belongs to, when not the request's
+ *   tenant (a hosting layer whose sessions span tenants).
  */
-export async function handleMcpPost(request: Request, options?: CreateMcpServerOptions): Promise<Response> {
+export async function handleMcpPost(request: Request, options?: CreateMcpServerOptions, sessionOwner?: string): Promise<Response> {
   cleanupStaleSessions();
   try {
-    const response = await handlePost(request, options);
+    const response = await handlePost(request, options, sessionOwner);
     return addCorsHeaders(response);
   } catch (error) {
     console.error('[MCP POST] Error:', error);
@@ -229,9 +242,9 @@ export async function handleMcpPost(request: Request, options?: CreateMcpServerO
   }
 }
 
-export async function handleMcpGet(request: Request): Promise<Response> {
+export async function handleMcpGet(request: Request, sessionOwner?: string): Promise<Response> {
   try {
-    const session = await findSession(request.headers.get('mcp-session-id'));
+    const session = await findSession(request.headers.get('mcp-session-id'), sessionOwner);
     if (!session) {
       return addCorsHeaders(new Response(JSON.stringify({
         jsonrpc: '2.0',
@@ -259,10 +272,10 @@ export async function handleMcpGet(request: Request): Promise<Response> {
   }
 }
 
-export async function handleMcpDelete(request: Request): Promise<Response> {
+export async function handleMcpDelete(request: Request, sessionOwner?: string): Promise<Response> {
   try {
     const sessionId = request.headers.get('mcp-session-id');
-    const session = await findSession(sessionId);
+    const session = await findSession(sessionId, sessionOwner);
     if (session && sessionId) {
       await session.transport.close();
       sessions.delete(sessionId);
@@ -286,7 +299,7 @@ export function unauthorizedJson(message: string): Response {
  * endpoint. Includes the absolute URL of the protected-resource metadata
  * document so OAuth-aware clients can discover the auth server.
  */
-export function buildWwwAuthenticateHeader(baseUrl: string): string {
-  const resourceMetadata = `${baseUrl}/.well-known/oauth-protected-resource/ycode/mcp`;
+export function buildWwwAuthenticateHeader(baseUrl: string, resourcePath = '/ycode/mcp'): string {
+  const resourceMetadata = `${baseUrl}/.well-known/oauth-protected-resource${resourcePath}`;
   return `Bearer realm="ycode", resource_metadata="${resourceMetadata}"`;
 }

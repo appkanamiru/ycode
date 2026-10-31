@@ -9,6 +9,7 @@ import { isMultiTenant } from '@/lib/database/tenancy';
 import { getTenantIdFromHeaders } from '@/lib/supabase-server';
 import { getHomeSiteSlug, getSitesDomain, PLATFORM_SCHEMA } from './config';
 import { getPlatformPool } from './db';
+import { ACCOUNT_MCP_PATH } from './mcp-account';
 import { normalizeHostname, resolveTenantByHost } from './tenants';
 
 /**
@@ -60,7 +61,21 @@ export async function resolveResourceSite(resource: string | null): Promise<stri
   } catch {
     return null;
   }
-  const builderHost = process.env.BETTER_AUTH_URL ? normalizeHostname(new URL(process.env.BETTER_AUTH_URL).host) : null;
-  if (host === builderHost) return undefined;
+  if (host === getBuilderHost()) return undefined;
   return resolveTenantByHost(host);
+}
+
+function getBuilderHost(): string | null {
+  return process.env.BETTER_AUTH_URL ? normalizeHostname(new URL(process.env.BETTER_AUTH_URL).host) : null;
+}
+
+/** Whether an OAuth `resource` is the account-wide MCP endpoint (all of the user's sites) */
+export function isAccountResource(resource: string | null): boolean {
+  if (!resource || !isMultiTenant()) return false;
+  try {
+    const url = new URL(resource);
+    return normalizeHostname(url.host) === getBuilderHost() && url.pathname.replace(/\/+$/, '') === ACCOUNT_MCP_PATH;
+  } catch {
+    return false;
+  }
 }

@@ -5,7 +5,7 @@ import { getSettingByKey } from '@/lib/repositories/settingsRepository';
 import { headers } from 'next/headers';
 import { isMultiTenant } from '@/lib/database/tenancy';
 import { listSites } from '@/lib/platform/sites';
-import { resolveResourceSite } from '@/lib/platform/mcp-site';
+import { isAccountResource, resolveResourceSite } from '@/lib/platform/mcp-site';
 import { resolveBuilderAccess } from '@/lib/platform/tenants';
 import ConsentForm, { type ConsentSite } from './ConsentForm';
 
@@ -153,7 +153,8 @@ export default async function AuthorizePage({
   // site's own MCP address (the `resource`) is for that site only.
   let sites: ConsentSite[] | null = null;
   let defaultSiteId: string | null = null;
-  if (isMultiTenant()) {
+  const account = isAccountResource(resource);
+  if (isMultiTenant() && !account) {
     const access = await resolveBuilderAccess(await headers());
     let memberships = access ? await listSites(access.user.id, access.tenantId) : [];
     const resourceSite = await resolveResourceSite(resource);
@@ -194,6 +195,7 @@ export default async function AuthorizePage({
       scope={scope}
       state={state}
       resource={resource}
+      account={account}
     />
   );
 }

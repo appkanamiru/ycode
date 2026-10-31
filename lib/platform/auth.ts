@@ -51,6 +51,33 @@ const DOMAINS_TABLE_SQL = `
   create unique index if not exists domains_tenant_primary_unique
     on ${PLATFORM_SCHEMA}.domains (tenant_id) where is_primary;`;
 
+/** OAuth grants of MCP clients connected to a whole account (lib/platform/mcp-account) */
+const MCP_ACCOUNT_TABLES_SQL = `
+  create table if not exists ${PLATFORM_SCHEMA}.mcp_account_codes (
+    code_hash text primary key,
+    user_id uuid not null references ${PLATFORM_SCHEMA}."user" (id) on delete cascade,
+    client_id text not null,
+    redirect_uri text not null,
+    code_challenge text not null,
+    code_challenge_method text not null,
+    expires_at timestamptz not null
+  );
+  create table if not exists ${PLATFORM_SCHEMA}.mcp_account_tokens (
+    id uuid primary key default gen_random_uuid(),
+    user_id uuid not null references ${PLATFORM_SCHEMA}."user" (id) on delete cascade,
+    client_id text not null,
+    name text not null,
+    access_token_hash text not null unique,
+    expires_at timestamptz not null,
+    refresh_token_hash text not null unique,
+    refresh_expires_at timestamptz not null,
+    is_active boolean not null default true,
+    refresh_grace_until timestamptz,
+    created_at timestamptz not null default now(),
+    last_used_at timestamptz
+  );
+  create index if not exists idx_mcp_account_tokens_user_id on ${PLATFORM_SCHEMA}.mcp_account_tokens (user_id);`;
+
 async function countUsers(): Promise<number> {
   const { rows } = await getPlatformPool().query(`select count(*)::int as count from ${PLATFORM_SCHEMA}."user"`);
   return rows[0].count;
@@ -177,4 +204,5 @@ export async function migratePlatform(): Promise<void> {
   const { runMigrations } = await getMigrations(createAuthOptions());
   await runMigrations();
   await getPlatformPool().query(DOMAINS_TABLE_SQL);
+  await getPlatformPool().query(MCP_ACCOUNT_TABLES_SQL);
 }

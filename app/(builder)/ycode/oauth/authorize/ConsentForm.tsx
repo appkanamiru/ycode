@@ -25,6 +25,8 @@ interface ConsentFormProps {
   state: string | null;
   /** The MCP endpoint the client connects to (RFC 8707) */
   resource: string | null;
+  /** The account-wide endpoint: access to all of the user's sites */
+  account?: boolean;
 }
 
 export default function ConsentForm(props: ConsentFormProps) {
@@ -89,8 +91,8 @@ export default function ConsentForm(props: ConsentFormProps) {
     // keep raw value on parse failure
   }
 
-  const siteLabel = chosenSite?.name || props.siteName || siteHost || 'this Ycode project';
-  const siteLabelHost = chosenSite ? chosenSite.host : props.siteName ? siteHost : null;
+  const siteLabel = props.account ? 'all your sites' : chosenSite?.name || props.siteName || siteHost || 'this Ycode project';
+  const siteLabelHost = props.account ? null : chosenSite ? chosenSite.host : props.siteName ? siteHost : null;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-neutral-950 p-6">
@@ -113,8 +115,9 @@ export default function ConsentForm(props: ConsentFormProps) {
             {' '}through the Model Context Protocol.
           </p>
           <p className="mt-3 text-white/60">
-            If you approve, this application will be able to read and modify your pages,
-            collections, assets, and other project data on your behalf.
+            {props.account
+              ? 'If you approve, this application will be able to read and modify the pages, collections, assets, and other data of every site you are a member of, including sites you join later.'
+              : 'If you approve, this application will be able to read and modify your pages, collections, assets, and other project data on your behalf.'}
           </p>
         </div>
 

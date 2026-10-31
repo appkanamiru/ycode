@@ -9,6 +9,14 @@ import McpConnectionsList from './components/mcp-connections-list';
 import McpLegacyTokens from './components/mcp-legacy-tokens';
 import { isOAuthToken, type McpToken } from './components/types';
 import { fetchPlatformSites } from '@/lib/platform/browser-sites';
+import { Button } from '@/components/ui/button';
+
+interface AccountConnection {
+  id: string;
+  name: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
 
 export default function McpPage() {
   const [tokens, setTokens] = useState<McpToken[]>([]);
@@ -16,6 +24,14 @@ export default function McpPage() {
   const [tokenToDelete, setTokenToDelete] = useState<McpToken | null>(null);
   const [mcpUrl, setMcpUrl] = useState('');
   const [isLocalhost, setIsLocalhost] = useState(false);
+  const [accountUrl, setAccountUrl] = useState('');
+  const [accountConnections, setAccountConnections] = useState<AccountConnection[]>([]);
+
+  const fetchAccountConnections = useCallback(async () => {
+    const response = await fetch('/ycode/api/platform/mcp-connections').catch(() => null);
+    if (!response?.ok) return;
+    setAccountConnections((await response.json()).data ?? []);
+  }, []);
 
   useEffect(() => {
     const { origin, hostname, protocol } = window.location;
@@ -32,9 +48,18 @@ export default function McpPage() {
       const site = platform?.sites.find((candidate) => candidate.active);
       if (site && platform?.sitesDomain) {
         setMcpUrl(`${protocol}//${site.slug}.${platform.sitesDomain}/ycode/mcp`);
+        // One connector for all of the user's sites
+        setAccountUrl(`${origin}/ycode/mcp/account`);
+        fetchAccountConnections();
       }
     }).catch(() => {});
-  }, []);
+  }, [fetchAccountConnections]);
+
+  const revokeAccountConnection = async (connection: AccountConnection) => {
+    if (!window.confirm(`Revoke access for "${connection.name}" to all your sites?`)) return;
+    await fetch(`/ycode/api/platform/mcp-connections/${connection.id}`, { method: 'DELETE' }).catch(() => null);
+    fetchAccountConnections();
+  };
 
   const fetchTokens = useCallback(async () => {
     try {
@@ -108,7 +133,44 @@ export default function McpPage() {
           </p>
         </div>
 
-        {mcpUrl && <McpEndpointCard url={mcpUrl} />}
+        {mcpUrl && (
+          <McpEndpointCard
+            url={mcpUrl}
+            title={accountUrl ? 'This site' : undefined}
+            description={accountUrl ? 'Connects an AI tool to this site only. Add one connector per site.' : undefined}
+          />
+        )}
+
+        {accountUrl && (
+          <div className="flex flex-col gap-3">
+            <McpEndpointCard
+              url={accountUrl}
+              title="All your sites"
+              description="One connector for every site you are a member of. The AI tool lists your sites and picks the one to work on."
+            />
+            {accountConnections.length > 0 && (
+              <div className="flex flex-col gap-2">
+                {accountConnections.map((connection) => (
+                  <div key={connection.id} className="flex items-center justify-between gap-3 rounded-lg border border-border px-4 py-3 text-sm">
+                    <div className="flex flex-col">
+                      <span>{connection.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        Connected {new Date(connection.createdAt).toLocaleDateString()}
+                        {connection.lastUsedAt ? ` · last used ${new Date(connection.lastUsedAt).toLocaleDateString()}` : ''}
+                      </span>
+                    </div>
+                    <Button
+                      variant="secondary" size="sm"
+                      onClick={() => revokeAccountConnection(connection)}
+                    >
+                      Revoke
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="flex flex-col gap-3">
           <span className="text-base font-medium">Connections</span>
