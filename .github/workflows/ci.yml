@@ -77,6 +77,7 @@ jobs:
       - name: Compose configuration
         run: |
           cp deploy/.env.example deploy/.env
-          sed -i 's/^POSTGRES_PASSWORD=$/POSTGRES_PASSWORD=ci/; s/^BETTER_AUTH_SECRET=$/BETTER_AUTH_SECRET=ci/; s/^CLOUDFLARE_API_TOKEN=$/CLOUDFLARE_API_TOKEN=ci/' deploy/.env
+          # Fill every value left empty in the example, required or not
+          sed -i 's/^\([A-Z0-9_]*\)=$/\1=ci/' deploy/.env
           docker compose --env-file deploy/.env -f deploy/docker-compose.yml config --quiet
           docker compose --env-file deploy/local.env -f deploy/docker-compose.yml -f deploy/docker-compose.local.yml config --quiet
