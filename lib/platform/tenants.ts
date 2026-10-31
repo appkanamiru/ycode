@@ -12,7 +12,7 @@ import { isMultiTenant } from '@/lib/database/tenancy';
 import { getHomeSiteSlug, getSitesDomain, isSitesApexHost, PLATFORM_SCHEMA } from './config';
 import { getPlatformPool } from './db';
 import { getPlatformAuth } from './auth';
-import { siteShowsBadge } from './sites';
+import { hasOwnAddress } from './sites';
 
 const HOST_CACHE_TTL_MS = 30_000;
 const globalForHosts = globalThis as unknown as {
@@ -99,24 +99,23 @@ export async function resolvePrimaryHost(tenantId: string): Promise<string | nul
   return hostname;
 }
 
-/** Drop a site's cached badge decision after its domains changed (this instance only) */
+/** Drop a site's cached badge decision after its primary domain changed (this instance only) */
 export function forgetSiteBadge(tenantId: string): void {
   badgeCache.delete(tenantId);
 }
 
-/** Whether the site's published pages show the platform badge (see siteShowsBadge) */
+/** Whether the site's published pages show the platform badge: it has no own address (see hasOwnAddress) */
 export async function resolveSiteBadge(tenantId: string): Promise<boolean> {
   const cached = badgeCache.get(tenantId);
   if (cached && cached.expiresAt > Date.now()) return cached.show;
 
   const { rows } = await getPlatformPool().query(
-    `select o.slug, count(d.id)::int as domains from ${PLATFORM_SCHEMA}.organization o
-     left join ${PLATFORM_SCHEMA}.domains d on d.tenant_id = o.id and d.verified_at is not null
-     where o.id = $1
-     group by o.slug`,
+    `select o.slug, d.hostname as primary_domain from ${PLATFORM_SCHEMA}.organization o
+     left join ${PLATFORM_SCHEMA}.domains d on d.tenant_id = o.id and d.is_primary and d.verified_at is not null
+     where o.id = $1`,
     [tenantId],
   );
-  const show = rows[0] ? siteShowsBadge(rows[0].slug, rows[0].domains) : false;
+  const show = rows[0] ? !hasOwnAddress(rows[0].slug, rows[0].primary_domain) : false;
   badgeCache.set(tenantId, { show, expiresAt: Date.now() + HOST_CACHE_TTL_MS });
   return show;
 }

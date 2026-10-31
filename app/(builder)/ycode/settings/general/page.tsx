@@ -510,7 +510,7 @@ export default function GeneralSettingsPage() {
                       <FieldLabel>&ldquo;Made in {platformBadge.name}&rdquo; badge</FieldLabel>
                       <FieldDescription>
                         {platformBadge.shown
-                          ? 'Shown on your published site. It is removed automatically once the site has its own verified domain.'
+                          ? 'Shown on your published site. It is removed automatically once a verified custom domain is set as primary.'
                           : 'Hidden: your site is served on its own domain.'}
                       </FieldDescription>
                     </FieldContent>

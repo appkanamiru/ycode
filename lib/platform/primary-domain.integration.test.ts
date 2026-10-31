@@ -140,7 +140,7 @@ test('the home site is served on the sites domain, which its other addresses red
   assert.equal(await lib.tenants.resolveTenantByHost('sites.test'), null);
 });
 
-test('a site shows the badge until a custom domain is verified', { skip: !DATABASE_URL }, async (t) => {
+test('a site shows the badge until a verified domain is primary', { skip: !DATABASE_URL }, async (t) => {
   if (!ready) return t.skip('platform schema missing');
   await lib.pool.query('delete from platform.domains where tenant_id = $1', [SITE]);
   lib.tenants.forgetSiteBadge(SITE);
@@ -158,8 +158,16 @@ test('a site shows the badge until a custom domain is verified', { skip: !DATABA
     resolveTxt: async () => [[`ycode-verification=badge-token`]],
   } as DnsLookup;
   await lib.domains.verifyDomain(SITE, SLUG, rows[0].id, txt);
+  // Verified but not primary: still on the free subdomain
+  assert.equal(await lib.tenants.resolveSiteBadge(SITE), true);
+
+  await lib.domains.setPrimaryDomain(SITE, SLUG, rows[0].id, true, lookup);
   assert.equal(await lib.tenants.resolveSiteBadge(SITE), false);
 
+  await lib.domains.setPrimaryDomain(SITE, SLUG, rows[0].id, false, lookup);
+  assert.equal(await lib.tenants.resolveSiteBadge(SITE), true);
+
+  await lib.domains.setPrimaryDomain(SITE, SLUG, rows[0].id, true, lookup);
   await lib.domains.removeDomain(SITE, rows[0].id);
   assert.equal(await lib.tenants.resolveSiteBadge(SITE), true);
 });

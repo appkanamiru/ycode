@@ -10,9 +10,9 @@
  * the app obtains, so their editor session is the only login they need.
  */
 
-import { getHomeSiteSlug, getUmamiConfig, PLATFORM_SCHEMA, type UmamiConfig } from './config';
+import { getUmamiConfig, PLATFORM_SCHEMA, type UmamiConfig } from './config';
 import { getPlatformPool } from './db';
-import { getSiteAddress } from './sites';
+import { getSiteAddress, hasOwnAddress } from './sites';
 
 export const SITE_ANALYTICS_TABLE_SQL = `
   create table if not exists ${PLATFORM_SCHEMA}.site_analytics (
@@ -89,19 +89,10 @@ async function umamiFetch(config: UmamiConfig, path: string, init: RequestInit =
 
 interface SiteStatsState {
   websiteId: string | null;
-  /** Statistics are part of serving a site on its own address (see hasOwnAddress) */
+  /** Statistics come with serving a site on its own address (see hasOwnAddress) */
   tracked: boolean;
   /** How Umami lists the site: its name, and the host it is served on */
   label: { name: string; domain: string };
-}
-
-/**
- * Sites are tracked once they are served on their own address: a primary
- * custom domain, or the sites domain itself for the home site. On a free
- * subdomain there is nothing to track (later a paid feature).
- */
-function hasOwnAddress(slug: string, primaryDomain: string | null): boolean {
-  return Boolean(primaryDomain) || slug === getHomeSiteSlug();
 }
 
 async function getSiteStatsState(tenantId: string): Promise<SiteStatsState | null> {

@@ -220,6 +220,7 @@ export async function setPrimaryDomain(
   }
 
   forgetPrimaryHost(siteId);
+  forgetSiteBadge(siteId);
   syncSiteAnalyticsLater(siteId);
   return toStatus(updated, siteSlug);
 }
@@ -304,7 +305,6 @@ export async function verifyDomain(
       client.release();
     }
     forgetHostname(row.hostname);
-    forgetSiteBadge(siteId);
   }
 
   const domain = toStatus(row, siteSlug);

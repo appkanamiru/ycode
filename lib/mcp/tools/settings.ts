@@ -8,11 +8,11 @@ import { getAllSettings, getSettingByKey, setSetting, setSettings } from '@/lib/
 const LARGE_SETTING_KEYS = new Set(['draft_css', 'published_css']);
 
 /** On the platform the badge shows until the site has its own domain; it is not a setting */
-const PLATFORM_BADGE_ERROR = 'ycode_badge cannot be changed on this platform: the "Made in" badge shows until the site is served on its own domain, and disappears once a custom domain is verified.';
+const PLATFORM_BADGE_ERROR = 'ycode_badge cannot be changed on this platform: the "Made in" badge shows until the site is served on its own domain, and disappears once a verified custom domain is made primary.';
 
 function getSettingKeysDoc(): string {
   const badgeDoc = isMultiTenant()
-    ? '- ycode_badge: read-only here; the badge shows until the site has a verified custom domain'
+    ? '- ycode_badge: read-only here; the badge shows until a verified custom domain is primary'
     : '- ycode_badge: boolean, show the Ycode badge on the published site';
   return SETTING_KEYS_DOC.replace('{{ycode_badge}}', badgeDoc);
 }

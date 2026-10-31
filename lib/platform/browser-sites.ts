@@ -9,7 +9,7 @@ export interface PlatformSite {
   role: string;
   url: string | null;
   domains: string[];
-  /** Published pages show the "Made in …" badge (until the site has its own domain) */
+  /** Published pages show the "Made in …" badge (until a custom domain is primary) */
   badge: boolean;
   active: boolean;
 }

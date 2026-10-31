@@ -3,7 +3,7 @@
  *
  * A single site follows its `ycode_badge` setting (on by default). On the
  * multi-tenant platform the badge is not a setting: a site shows it until it
- * is served on its own domain (see siteShowsBadge).
+ * is served on its own address (see hasOwnAddress).
  */
 
 import { isMultiTenant } from '@/lib/database/tenancy';

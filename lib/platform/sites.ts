@@ -49,11 +49,13 @@ export function getSiteAddress(slug: string, primaryDomain: string | null): stri
 }
 
 /**
- * Whether a site shows the platform's "Made in …" badge: until it is served on
- * its own domain. The home site is the platform's own and never shows it.
+ * Whether a site is served on its own address: a primary custom domain, or
+ * the sites domain itself for the home site. It then has no "Made in …"
+ * badge and gets visitor statistics (later a paid plan); on its free
+ * subdomain it shows the badge and is not tracked.
  */
-export function siteShowsBadge(slug: string, verifiedDomainCount: number): boolean {
-  return verifiedDomainCount === 0 && slug !== getHomeSiteSlug();
+export function hasOwnAddress(slug: string, primaryDomain: string | null): boolean {
+  return Boolean(primaryDomain) || slug === getHomeSiteSlug();
 }
 
 export async function countOwnedSites(userId: string): Promise<number> {
@@ -71,7 +73,7 @@ export interface SiteSummary {
   role: string;
   url: string | null;
   domains: string[];
-  /** Published pages show the platform badge (see siteShowsBadge) */
+  /** Published pages show the platform badge: the site has no own address (see hasOwnAddress) */
   badge: boolean;
   active: boolean;
 }
@@ -98,7 +100,7 @@ export async function listSites(userId: string, activeSiteId: string | null): Pr
     role: row.role,
     url: getSiteAddress(row.slug, row.primary_domain),
     domains: row.domains,
-    badge: siteShowsBadge(row.slug, row.domains.length),
+    badge: !hasOwnAddress(row.slug, row.primary_domain),
     active: row.id === activeSiteId,
   }));
 }
