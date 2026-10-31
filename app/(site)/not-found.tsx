@@ -4,6 +4,7 @@ import { fetchGlobalPageSettings } from '@/lib/generate-page-metadata';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
 import { getTenantIdFromHeaders } from '@/lib/supabase-server';
 import { isMultiTenant } from '@/lib/database/tenancy';
+import { shouldShowSiteBadge } from '@/lib/site-badge';
 import PageRenderer from '@/components/PageRenderer';
 import YcodeBadge from '@/components/YcodeBadge';
 
@@ -44,8 +45,7 @@ export default async function NotFound() {
 
   let showBadge = true;
   try {
-    const setting = await getSettingByKey('ycode_badge');
-    showBadge = setting ?? true;
+    showBadge = await shouldShowSiteBadge(await getSettingByKey('ycode_badge'));
   } catch {
     // Supabase not configured
   }

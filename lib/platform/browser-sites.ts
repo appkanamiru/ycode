@@ -9,6 +9,8 @@ export interface PlatformSite {
   role: string;
   url: string | null;
   domains: string[];
+  /** Published pages show the "Made in …" badge (until the site has its own domain) */
+  badge: boolean;
   active: boolean;
 }
 
@@ -18,6 +20,8 @@ export interface PlatformSites {
   limit: number;
   canCreate: boolean;
   sitesDomain: string | null;
+  /** Name in the "Made in …" badge */
+  generatorName: string;
 }
 
 /** null when the server is not multi-tenant (or the user is signed out) */

@@ -6,6 +6,7 @@ import { getPlatformAuth } from '@/lib/platform/auth';
 import { getSitesDomain, isPlatformAuth } from '@/lib/platform/config';
 import { authErrorResponse } from '@/lib/platform/http';
 import { countOwnedSites, DEFAULT_SITE_LIMIT, listSites, validateSiteSlug } from '@/lib/platform/sites';
+import { getSiteGenerator } from '@/lib/ycode-html-comment';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -34,7 +35,14 @@ export async function GET() {
   const limit = Number((session.user as { siteLimit?: number }).siteLimit) || DEFAULT_SITE_LIMIT;
 
   return noCache({
-    data: { sites, owned, limit, canCreate: owned < limit, sitesDomain: getSitesDomain() },
+    data: {
+      sites,
+      owned,
+      limit,
+      canCreate: owned < limit,
+      sitesDomain: getSitesDomain(),
+      generatorName: getSiteGenerator().name,
+    },
   });
 }
 

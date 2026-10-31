@@ -12,15 +12,18 @@ import { isMultiTenant } from '@/lib/database/tenancy';
 import { getHomeSiteSlug, getSitesDomain, isSitesApexHost, PLATFORM_SCHEMA } from './config';
 import { getPlatformPool } from './db';
 import { getPlatformAuth } from './auth';
+import { siteShowsBadge } from './sites';
 
 const HOST_CACHE_TTL_MS = 30_000;
 const globalForHosts = globalThis as unknown as {
   __platformHostCache?: Map<string, { tenantId: string | null; expiresAt: number }>;
   __platformPrimaryHostCache?: Map<string, { hostname: string | null; expiresAt: number }>;
+  __platformBadgeCache?: Map<string, { show: boolean; expiresAt: number }>;
 };
 /** On globalThis: the proxy and the routes that change domains are separate bundles */
 const hostCache = globalForHosts.__platformHostCache ??= new Map();
 const primaryHostCache = globalForHosts.__platformPrimaryHostCache ??= new Map();
+const badgeCache = globalForHosts.__platformBadgeCache ??= new Map();
 
 export function normalizeHostname(host: string | null): string | null {
   if (!host) return null;
@@ -94,6 +97,28 @@ export async function resolvePrimaryHost(tenantId: string): Promise<string | nul
   const hostname: string | null = rows[0]?.hostname ?? (isHomeSite ? getSitesDomain() : null);
   primaryHostCache.set(tenantId, { hostname, expiresAt: Date.now() + HOST_CACHE_TTL_MS });
   return hostname;
+}
+
+/** Drop a site's cached badge decision after its domains changed (this instance only) */
+export function forgetSiteBadge(tenantId: string): void {
+  badgeCache.delete(tenantId);
+}
+
+/** Whether the site's published pages show the platform badge (see siteShowsBadge) */
+export async function resolveSiteBadge(tenantId: string): Promise<boolean> {
+  const cached = badgeCache.get(tenantId);
+  if (cached && cached.expiresAt > Date.now()) return cached.show;
+
+  const { rows } = await getPlatformPool().query(
+    `select o.slug, count(d.id)::int as domains from ${PLATFORM_SCHEMA}.organization o
+     left join ${PLATFORM_SCHEMA}.domains d on d.tenant_id = o.id and d.verified_at is not null
+     where o.id = $1
+     group by o.slug`,
+    [tenantId],
+  );
+  const show = rows[0] ? siteShowsBadge(rows[0].slug, rows[0].domains) : false;
+  badgeCache.set(tenantId, { show, expiresAt: Date.now() + HOST_CACHE_TTL_MS });
+  return show;
 }
 
 export interface BuilderAccess {

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { slugifySiteName } from './browser-sites';
-import { validateSiteSlug } from './sites';
+import { siteShowsBadge, validateSiteSlug } from './sites';
 
 test('valid site slugs', () => {
   for (const slug of ['petr-novak', 'abc', 'firma2026', 'a1b', 'x'.repeat(40)]) {
@@ -28,4 +28,17 @@ test('site names become subdomain suggestions', () => {
   assert.equal(slugifySiteName('Žluťoučký kůň'), 'zlutoucky-kun');
   assert.equal(slugifySiteName('---'), '');
   assert.equal(slugifySiteName('a'.repeat(39) + ' b'), 'a'.repeat(39));
+});
+
+test('sites show the badge until they have their own domain', () => {
+  const homeSite = process.env.PLATFORM_HOME_SITE;
+  process.env.PLATFORM_HOME_SITE = 'platform-home';
+  try {
+    assert.equal(siteShowsBadge('petr-novak', 0), true);
+    assert.equal(siteShowsBadge('petr-novak', 1), false);
+    assert.equal(siteShowsBadge('platform-home', 0), false);
+  } finally {
+    if (homeSite === undefined) delete process.env.PLATFORM_HOME_SITE;
+    else process.env.PLATFORM_HOME_SITE = homeSite;
+  }
 });

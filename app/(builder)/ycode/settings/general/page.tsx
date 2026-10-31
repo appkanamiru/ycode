@@ -27,6 +27,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useAssetsStore } from '@/stores/useAssetsStore';
+import { fetchPlatformSites } from '@/lib/platform/browser-sites';
 import type { SitemapSettings, SitemapMode, SitemapChangeFrequency, Asset } from '@/types';
 import { getDefaultSitemapSettings } from '@/lib/sitemap-utils';
 import { getTimezoneOptions } from '@/lib/setting-utils';
@@ -81,6 +82,21 @@ export default function GeneralSettingsPage() {
   // Initialize Ycode badge from store
   const storedYcodeBadge = getSettingByKey('ycode_badge') as boolean | null;
   const [ycodeBadge, setYcodeBadge] = useState(storedYcodeBadge ?? true);
+  // On the platform the badge follows the site's domains, not this setting
+  const [platformBadge, setPlatformBadge] = useState<{ shown: boolean; name: string } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchPlatformSites()
+      .then((data) => {
+        const site = data?.sites.find((candidate) => candidate.active);
+        if (!cancelled && data && site) setPlatformBadge({ shown: site.badge, name: data.generatorName });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [isSavingWebsite, setIsSavingWebsite] = useState(false);
 
   // Initialize timezone from store (default UTC)
@@ -205,7 +221,7 @@ export default function GeneralSettingsPage() {
     try {
       const success = await saveSettings({
         site_name: trimmedName,
-        ycode_badge: ycodeBadge,
+        ...(platformBadge ? {} : { ycode_badge: ycodeBadge }),
         timezone,
         favicon_asset_id: faviconAssetId || null,
         web_clip_asset_id: webClipAssetId || null,
@@ -220,7 +236,7 @@ export default function GeneralSettingsPage() {
     } finally {
       setIsSavingWebsite(false);
     }
-  }, [siteName, saveSettings, ycodeBadge, timezone, faviconAssetId, webClipAssetId]);
+  }, [siteName, saveSettings, ycodeBadge, platformBadge, timezone, faviconAssetId, webClipAssetId]);
 
   const handleDetectTimezone = useCallback(() => {
     const detected = getDetectedTimezone();
@@ -488,6 +504,18 @@ export default function GeneralSettingsPage() {
 
                 <FieldSeparator className="col-span-2" />
 
+                {platformBadge ? (
+                  <Field className="col-span-2">
+                    <FieldContent>
+                      <FieldLabel>&ldquo;Made in {platformBadge.name}&rdquo; badge</FieldLabel>
+                      <FieldDescription>
+                        {platformBadge.shown
+                          ? 'Shown on your published site. It is removed automatically once the site has its own verified domain.'
+                          : 'Hidden: your site is served on its own domain.'}
+                      </FieldDescription>
+                    </FieldContent>
+                  </Field>
+                ) : (
                 <Field orientation="horizontal" className="flex-row-reverse col-span-2">
                   <FieldContent>
                     <FieldLabel htmlFor="badge">Display the &ldquo;Made in Ycode&rdquo; badge</FieldLabel>
@@ -503,6 +531,7 @@ export default function GeneralSettingsPage() {
                     onCheckedChange={setYcodeBadge}
                   />
                 </Field>
+                )}
 
                 <FieldSeparator className="col-span-2" />
 

@@ -7,6 +7,7 @@ import LightboxInitializer from '@/components/LightboxInitializer';
 import PasswordForm from '@/components/PasswordForm';
 import SliderInitializer from '@/components/SliderInitializer';
 import YcodeBadge from '@/components/YcodeBadge';
+import { shouldShowSiteBadge } from '@/lib/site-badge';
 import { unstable_cache } from 'next/cache';
 import { getTenantIdFromHeaders, runInTenantContext } from '@/lib/supabase-server';
 import { buildAllPagesTag } from '@/lib/cache-tags';
@@ -980,7 +981,7 @@ export default async function PageRenderer({
         <CustomCodeInjector html={pageCustomCodeBody} />
       )}
 
-      {ycodeBadge && !isPreview && <YcodeBadge />}
+      {!isPreview && await shouldShowSiteBadge(ycodeBadge) && <YcodeBadge />}
     </>
   );
 }

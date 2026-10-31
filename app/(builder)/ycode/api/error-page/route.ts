@@ -5,6 +5,8 @@ import { getSettingsByKeys } from '@/lib/repositories/settingsRepository';
 import { generateColorVariablesCss } from '@/lib/repositories/colorVariableRepository';
 import { resolvePathLocaleCode } from '@/lib/resolve-html-lang';
 import { getTenantIdFromHeaders } from '@/lib/supabase-server';
+import { shouldShowSiteBadge } from '@/lib/site-badge';
+import { getSiteGenerator } from '@/lib/ycode-html-comment';
 
 // Force dynamic rendering - no caching
 export const dynamic = 'force-dynamic';
@@ -63,7 +65,8 @@ export async function GET(request: NextRequest) {
       pageData,
       css: settings[cssKey] || null,
       colorVariablesCss,
-      ycodeBadge: settings.ycode_badge ?? true,
+      ycodeBadge: await shouldShowSiteBadge(settings.ycode_badge),
+      generator: getSiteGenerator(),
     });
   } catch (error) {
     console.error('Failed to fetch error page:', error);

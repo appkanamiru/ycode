@@ -20,7 +20,7 @@ import { domainToASCII } from 'url';
 
 import { PLATFORM_SCHEMA, getSitesDomain } from './config';
 import { getPlatformPool } from './db';
-import { forgetHostname, forgetPrimaryHost, normalizeHostname } from './tenants';
+import { forgetHostname, forgetPrimaryHost, forgetSiteBadge, normalizeHostname } from './tenants';
 
 export const VERIFICATION_PREFIX = '_ycode-verification';
 const VERIFICATION_VALUE_PREFIX = 'ycode-verification=';
@@ -166,6 +166,7 @@ export async function removeDomain(siteId: string, domainId: string): Promise<vo
   if (!rows[0]) throw new DomainError('Domain not found', 404);
   forgetHostname(rows[0].hostname);
   forgetPrimaryHost(siteId);
+  forgetSiteBadge(siteId);
 }
 
 /**
@@ -300,6 +301,7 @@ export async function verifyDomain(
       client.release();
     }
     forgetHostname(row.hostname);
+    forgetSiteBadge(siteId);
   }
 
   const domain = toStatus(row, siteSlug);

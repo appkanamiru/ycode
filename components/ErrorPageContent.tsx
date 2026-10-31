@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import ErrorFallback from '@/components/ErrorFallback';
 import LayerRendererPublic from '@/components/LayerRendererPublic';
 import YcodeBadge from '@/components/YcodeBadge';
+import type { SiteGenerator } from '@/lib/site-generator';
 import type { PageData } from '@/lib/page-fetcher';
 
 interface ErrorPageContentProps {
@@ -24,6 +25,7 @@ export default function ErrorPageContent({ published, reset }: ErrorPageContentP
   const [generatedCss, setGeneratedCss] = useState<string>('');
   const [colorVariablesCss, setColorVariablesCss] = useState<string>('');
   const [showBadge, setShowBadge] = useState(false);
+  const [generator, setGenerator] = useState<SiteGenerator | undefined>();
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -42,6 +44,7 @@ export default function ErrorPageContent({ published, reset }: ErrorPageContentP
           setColorVariablesCss(data.colorVariablesCss || '');
           if (published) {
             setShowBadge(data.ycodeBadge ?? true);
+            setGenerator(data.generator ?? undefined);
           }
         }
       } catch (err) {
@@ -91,7 +94,7 @@ export default function ErrorPageContent({ published, reset }: ErrorPageContentP
         {customCodeBody && (
           <div dangerouslySetInnerHTML={{ __html: customCodeBody }} />
         )}
-        {showBadge && <YcodeBadge />}
+        {showBadge && <YcodeBadge generator={generator} />}
       </>
     );
   }

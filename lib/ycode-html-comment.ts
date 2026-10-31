@@ -4,22 +4,16 @@
  * before `<html>`.
  */
 
+import { getSiteGenerator } from '@/lib/site-generator';
+
+export { getSiteGenerator, type SiteGenerator } from '@/lib/site-generator';
+
 const MONTHS = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ] as const;
 
 export const MADE_IN_YCODE_COMMENT = 'Made in Ycode · ycode.com';
-
-/**
- * The builder that published sites name as their generator (meta tag and
- * source stamp): SITE_GENERATOR_NAME and SITE_GENERATOR_URL, Ycode by default.
- */
-export function getSiteGenerator(): { name: string; url: string | null } {
-  const name = process.env.SITE_GENERATOR_NAME?.trim();
-  if (!name) return { name: 'Ycode', url: 'ycode.com' };
-  return { name, url: process.env.SITE_GENERATOR_URL?.trim() || null };
-}
 
 function getMadeInComment(): string {
   const { name, url } = getSiteGenerator();

@@ -139,3 +139,39 @@ test('the home site is served on the sites domain, which its other addresses red
   }
   assert.equal(await lib.tenants.resolveTenantByHost('sites.test'), null);
 });
+
+test('a site shows the badge until a custom domain is verified', { skip: !DATABASE_URL }, async (t) => {
+  if (!ready) return t.skip('platform schema missing');
+  await lib.pool.query('delete from platform.domains where tenant_id = $1', [SITE]);
+  lib.tenants.forgetSiteBadge(SITE);
+  assert.equal(await lib.tenants.resolveSiteBadge(SITE), true);
+
+  const { rows } = await lib.pool.query(
+    `insert into platform.domains (tenant_id, hostname, verification_token) values ($1, 'badge.test', 'badge-token') returning id`,
+    [SITE],
+  );
+  // An unverified domain does not count
+  assert.equal(await lib.tenants.resolveSiteBadge(SITE), true);
+
+  const txt: DnsLookup = {
+    ...lookup,
+    resolveTxt: async () => [[`ycode-verification=badge-token`]],
+  } as DnsLookup;
+  await lib.domains.verifyDomain(SITE, SLUG, rows[0].id, txt);
+  assert.equal(await lib.tenants.resolveSiteBadge(SITE), false);
+
+  await lib.domains.removeDomain(SITE, rows[0].id);
+  assert.equal(await lib.tenants.resolveSiteBadge(SITE), true);
+});
+
+test('the home site never shows the badge', { skip: !DATABASE_URL }, async (t) => {
+  if (!ready) return t.skip('platform schema missing');
+  process.env.PLATFORM_HOME_SITE = HOME_SLUG;
+  try {
+    lib.tenants.forgetSiteBadge(HOME);
+    assert.equal(await lib.tenants.resolveSiteBadge(HOME), false);
+  } finally {
+    delete process.env.PLATFORM_HOME_SITE;
+    lib.tenants.forgetSiteBadge(HOME);
+  }
+});

@@ -48,6 +48,14 @@ function getSiteAddress(slug: string, primaryDomain: string | null): string | nu
   return getSiteUrl(slug);
 }
 
+/**
+ * Whether a site shows the platform's "Made in …" badge: until it is served on
+ * its own domain. The home site is the platform's own and never shows it.
+ */
+export function siteShowsBadge(slug: string, verifiedDomainCount: number): boolean {
+  return verifiedDomainCount === 0 && slug !== getHomeSiteSlug();
+}
+
 export async function countOwnedSites(userId: string): Promise<number> {
   const { rows } = await getPlatformPool().query(
     `select count(*)::int as count from ${PLATFORM_SCHEMA}.member where "userId" = $1 and role = 'owner'`,
@@ -63,6 +71,8 @@ export interface SiteSummary {
   role: string;
   url: string | null;
   domains: string[];
+  /** Published pages show the platform badge (see siteShowsBadge) */
+  badge: boolean;
   active: boolean;
 }
 
@@ -88,6 +98,7 @@ export async function listSites(userId: string, activeSiteId: string | null): Pr
     role: row.role,
     url: getSiteAddress(row.slug, row.primary_domain),
     domains: row.domains,
+    badge: siteShowsBadge(row.slug, row.domains.length),
     active: row.id === activeSiteId,
   }));
 }
