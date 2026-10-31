@@ -2,7 +2,6 @@ import { notFound, redirect, permanentRedirect } from 'next/navigation';
 import { connection } from 'next/server';
 import { unstable_cache } from 'next/cache';
 import { addCacheTag } from '@vercel/functions';
-import Link from 'next/link';
 import type { Metadata } from 'next';
 import { getDbClient } from '@/lib/database/pg-client';
 import { GLOBAL_SETTINGS_TAG } from '@/lib/cache-tags';
@@ -13,6 +12,7 @@ import { fetchCachedErrorPage, fetchCachedPageForMetadata } from '@/lib/publishe
 import { fetchHomepage, fetchPageByPath, splitPageData, reassemblePageData } from '@/lib/page-fetcher';
 import type { PageData, PaginationContext } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
+import SiteWelcome, { generateSiteWelcomeMetadata } from '@/components/SiteWelcome';
 import PaginationSeoLinks from '@/components/PaginationSeoLinks';
 import PasswordForm from '@/components/PasswordForm';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
@@ -316,21 +316,7 @@ export default async function Page({ params }: PageProps) {
 
   if (!data || (isHomepage && !data.pageLayers)) {
     if (isHomepage) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-white">
-          <div className="text-center p-8 flex flex-col items-center justify-center gap-2">
-            <h1 className="text-xl font-semibold text-neutral-900">
-              Welcome to Ycode
-            </h1>
-            <Link
-              href="/ycode"
-              className=" bg-blue-500 text-white text-sm font-medium h-8 flex items-center justify-center px-3 rounded-lg transition-colors"
-            >
-              Get started
-            </Link>
-          </div>
-        </div>
-      );
+      return <SiteWelcome />;
     }
 
     // Page not found: hand off to the 404 boundary so the response carries a real
@@ -464,10 +450,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug?: st
 
   if (!data) {
     if (isHomepage) {
-      return {
-        title: 'Ycode',
-        description: 'Built with Ycode',
-      };
+      return generateSiteWelcomeMetadata();
     }
 
     // The layout emits this same metadata into the flushed head (Next.js drops

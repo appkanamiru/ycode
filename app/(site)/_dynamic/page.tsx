@@ -1,8 +1,8 @@
 import { unstable_noStore } from 'next/cache';
-import Link from 'next/link';
 import type { Metadata } from 'next';
 import { fetchHomepage, fetchErrorPage } from '@/lib/page-fetcher';
 import PageRenderer from '@/components/PageRenderer';
+import SiteWelcome, { generateSiteWelcomeMetadata } from '@/components/SiteWelcome';
 import PaginationSeoLinks from '@/components/PaginationSeoLinks';
 import PasswordForm from '@/components/PasswordForm';
 import { fetchGlobalPageSettings, generateErrorPageMetadata, generatePageMetadata } from '@/lib/generate-page-metadata';
@@ -34,21 +34,7 @@ export default async function DynamicHome({ searchParams }: DynamicHomeProps) {
   const data = await fetchHomepage(true, paginationContext);
 
   if (!data || !data.pageLayers) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center p-8 flex flex-col items-center justify-center gap-2">
-          <h1 className="text-xl font-semibold text-neutral-900">
-            Welcome to Ycode
-          </h1>
-          <Link
-            href="/ycode"
-            className=" bg-blue-500 text-white text-sm font-medium h-8 flex items-center justify-center px-3 rounded-lg transition-colors"
-          >
-            Get started
-          </Link>
-        </div>
-      </div>
-    );
+    return <SiteWelcome />;
   }
 
   const folders = await fetchFoldersForAuth(true);
@@ -152,10 +138,7 @@ export async function generateMetadata({ searchParams }: DynamicHomeProps): Prom
   const tenantId = resolvedTenantId ?? undefined;
 
   if (!data) {
-    return {
-      title: 'Ycode',
-      description: 'Built with Ycode',
-    };
+    return generateSiteWelcomeMetadata();
   }
 
   // Don't leak metadata for protected pages — the page component gates access.
