@@ -23,6 +23,8 @@ interface ConsentFormProps {
   codeChallengeMethod: string;
   scope: string | null;
   state: string | null;
+  /** The MCP endpoint the client connects to (RFC 8707) */
+  resource: string | null;
 }
 
 export default function ConsentForm(props: ConsentFormProps) {
@@ -57,6 +59,7 @@ export default function ConsentForm(props: ConsentFormProps) {
           scope: props.scope,
           state: props.state,
           site_id: siteId,
+          resource: props.resource,
         }),
       });
 

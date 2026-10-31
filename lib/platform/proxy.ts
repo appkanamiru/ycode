@@ -158,15 +158,24 @@ export async function resolvePlatformRequest(
 
 /**
  * Tenant of an MCP request, from its token: `/ycode/mcp/<token>` or
- * `Authorization: Bearer <token>`. Unknown tokens resolve to no tenant, and
- * the route then rejects them.
+ * `Authorization: Bearer <token>`. Unknown tokens, and tokens of another
+ * site than the one whose address the request came to, resolve to no
+ * tenant, and the route then rejects them.
  */
 export async function resolveMcpTenant(request: NextRequest): Promise<string | null> {
   if (!isMultiTenant()) return null;
+  const host = request.headers.get('host');
 
   const pathToken = request.nextUrl.pathname.match(/^\/ycode\/mcp\/([^/]+)/)?.[1];
   const bearerToken = request.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
   const token = pathToken ? decodeURIComponent(pathToken) : bearerToken;
 
-  return token ? findTenantByMcpToken(token) : null;
+  const tenantId = token ? await findTenantByMcpToken(token) : null;
+
+  // On a site's own address (`<slug>.<sites domain>/ycode/mcp`) the
+  // connection is for that site only
+  if (tenantId && !isBuilderHost(host)) {
+    return await resolveTenantByHost(host) === tenantId ? tenantId : null;
+  }
+  return tenantId;
 }

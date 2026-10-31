@@ -3,6 +3,7 @@ import { getAuthUser } from '@/lib/supabase-auth';
 import { isRedirectUriRegistered, resolveOAuthClient } from '@/lib/oauth/resolve-client';
 import { createCode } from '@/lib/repositories/mcpOAuthCodeRepository';
 import { isMultiTenant } from '@/lib/database/tenancy';
+import { resolveResourceSite } from '@/lib/platform/mcp-site';
 import { getSiteMembership } from '@/lib/platform/sites';
 import { runInTenantContext } from '@/lib/supabase-server';
 
@@ -29,6 +30,7 @@ interface AuthorizeBody {
   scope?: unknown;
   decision?: unknown; // 'approve' | 'deny'
   site_id?: unknown; // multi-tenant: the site the client gets access to
+  resource?: unknown; // the MCP endpoint (RFC 8707); a site's own address names the site
 }
 
 function redirectWithError(
@@ -119,6 +121,13 @@ export async function POST(request: NextRequest) {
   let siteId: string | null = null;
   if (isMultiTenant()) {
     siteId = typeof body.site_id === 'string' ? body.site_id : null;
+    const resourceSite = await resolveResourceSite(typeof body.resource === 'string' ? body.resource : null);
+    if (resourceSite !== undefined && resourceSite !== siteId) {
+      return NextResponse.json(
+        { error: 'invalid_target', error_description: 'This connector is for another site' },
+        { status: 400 },
+      );
+    }
     if (!siteId || !(await getSiteMembership(auth.user.id, siteId))) {
       return NextResponse.json(
         { error: 'invalid_request', error_description: 'Choose one of your sites' },

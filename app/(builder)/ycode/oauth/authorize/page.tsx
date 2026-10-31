@@ -5,6 +5,7 @@ import { getSettingByKey } from '@/lib/repositories/settingsRepository';
 import { headers } from 'next/headers';
 import { isMultiTenant } from '@/lib/database/tenancy';
 import { listSites } from '@/lib/platform/sites';
+import { resolveResourceSite } from '@/lib/platform/mcp-site';
 import { resolveBuilderAccess } from '@/lib/platform/tenants';
 import ConsentForm, { type ConsentSite } from './ConsentForm';
 
@@ -72,6 +73,7 @@ export default async function AuthorizePage({
   const codeChallengeMethod = asString(params.code_challenge_method);
   const scope = asString(params.scope);
   const state = asString(params.state);
+  const resource = asString(params.resource);
 
   if (!responseType || !clientId || !redirectUri || !codeChallenge || !codeChallengeMethod) {
     return (
@@ -147,12 +149,25 @@ export default async function AuthorizePage({
   }
 
   // Multi-tenant: the user picks which of their sites the client gets access
-  // to, starting from the one active in the editor
+  // to, starting from the one active in the editor. A connector added with a
+  // site's own MCP address (the `resource`) is for that site only.
   let sites: ConsentSite[] | null = null;
   let defaultSiteId: string | null = null;
   if (isMultiTenant()) {
     const access = await resolveBuilderAccess(await headers());
-    const memberships = access ? await listSites(access.user.id, access.tenantId) : [];
+    let memberships = access ? await listSites(access.user.id, access.tenantId) : [];
+    const resourceSite = await resolveResourceSite(resource);
+    if (resourceSite !== undefined) {
+      memberships = memberships.filter((site) => site.id === resourceSite);
+      if (memberships.length === 0) {
+        return (
+          <ErrorPanel
+            title="No access to this site"
+            message="The connector's address belongs to a site you are not a member of. Sign in with an account that can edit it."
+          />
+        );
+      }
+    }
     if (memberships.length === 0) {
       return (
         <ErrorPanel
@@ -178,6 +193,7 @@ export default async function AuthorizePage({
       codeChallengeMethod={codeChallengeMethod}
       scope={scope}
       state={state}
+      resource={resource}
     />
   );
 }

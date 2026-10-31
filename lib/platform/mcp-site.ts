@@ -9,6 +9,7 @@ import { isMultiTenant } from '@/lib/database/tenancy';
 import { getTenantIdFromHeaders } from '@/lib/supabase-server';
 import { getHomeSiteSlug, getSitesDomain, PLATFORM_SCHEMA } from './config';
 import { getPlatformPool } from './db';
+import { normalizeHostname, resolveTenantByHost } from './tenants';
 
 /**
  * Server instructions naming the site an MCP connection works on. Agents
@@ -43,4 +44,23 @@ This connection works on the site ${JSON.stringify(site.name)}${addresses.length
 Every tool reads and changes this site only. If several website builders are connected, check that this is
 the site you were asked to work on before making changes.`,
   };
+}
+
+/**
+ * The site an OAuth `resource` (RFC 8707) is for: the MCP endpoint on a
+ * site's own address names that site. Undefined for the editor's endpoint
+ * (or none given), where the user picks the site; null for an address no
+ * site has.
+ */
+export async function resolveResourceSite(resource: string | null): Promise<string | null | undefined> {
+  if (!resource || !isMultiTenant()) return undefined;
+  let host: string | null;
+  try {
+    host = normalizeHostname(new URL(resource).host);
+  } catch {
+    return null;
+  }
+  const builderHost = process.env.BETTER_AUTH_URL ? normalizeHostname(new URL(process.env.BETTER_AUTH_URL).host) : null;
+  if (host === builderHost) return undefined;
+  return resolveTenantByHost(host);
 }

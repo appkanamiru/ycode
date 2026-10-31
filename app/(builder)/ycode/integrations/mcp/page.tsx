@@ -8,6 +8,7 @@ import McpClientInstructions from './components/mcp-client-instructions';
 import McpConnectionsList from './components/mcp-connections-list';
 import McpLegacyTokens from './components/mcp-legacy-tokens';
 import { isOAuthToken, type McpToken } from './components/types';
+import { fetchPlatformSites } from '@/lib/platform/browser-sites';
 
 export default function McpPage() {
   const [tokens, setTokens] = useState<McpToken[]>([]);
@@ -17,12 +18,22 @@ export default function McpPage() {
   const [isLocalhost, setIsLocalhost] = useState(false);
 
   useEffect(() => {
-    const { origin, hostname } = window.location;
+    const { origin, hostname, protocol } = window.location;
     // Deployments behind a reverse proxy or served from several hostnames can
     // pin the advertised endpoint; otherwise it is this site's own /ycode/mcp.
     const configured = process.env.NEXT_PUBLIC_MCP_SERVER_URL?.trim();
     setMcpUrl(configured || `${origin}/ycode/mcp`);
     setIsLocalhost(!configured && (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.localhost')));
+
+    // Multi-tenant: each site has its own endpoint on its subdomain, so a
+    // client can connect to several sites (one connector per URL)
+    if (configured) return;
+    fetchPlatformSites().then((platform) => {
+      const site = platform?.sites.find((candidate) => candidate.active);
+      if (site && platform?.sitesDomain) {
+        setMcpUrl(`${protocol}//${site.slug}.${platform.sitesDomain}/ycode/mcp`);
+      }
+    }).catch(() => {});
   }, []);
 
   const fetchTokens = useCallback(async () => {
