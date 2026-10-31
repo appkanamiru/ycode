@@ -20,6 +20,7 @@ import { domainToASCII } from 'url';
 
 import { PLATFORM_SCHEMA, getSitesDomain } from './config';
 import { getPlatformPool } from './db';
+import { syncSiteAnalyticsLater } from './analytics';
 import { forgetHostname, forgetPrimaryHost, forgetSiteBadge, normalizeHostname } from './tenants';
 
 export const VERIFICATION_PREFIX = '_ycode-verification';
@@ -167,6 +168,7 @@ export async function removeDomain(siteId: string, domainId: string): Promise<vo
   forgetHostname(rows[0].hostname);
   forgetPrimaryHost(siteId);
   forgetSiteBadge(siteId);
+  syncSiteAnalyticsLater(siteId);
 }
 
 /**
@@ -218,6 +220,7 @@ export async function setPrimaryDomain(
   }
 
   forgetPrimaryHost(siteId);
+  syncSiteAnalyticsLater(siteId);
   return toStatus(updated, siteSlug);
 }
 

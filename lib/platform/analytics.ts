@@ -9,8 +9,9 @@
  * the app obtains, so their editor session is the only login they need.
  */
 
-import { getSitesDomain, getUmamiConfig, PLATFORM_SCHEMA, type UmamiConfig } from './config';
+import { getUmamiConfig, PLATFORM_SCHEMA, type UmamiConfig } from './config';
 import { getPlatformPool } from './db';
+import { getSiteAddress } from './sites';
 
 export const SITE_ANALYTICS_TABLE_SQL = `
   create table if not exists ${PLATFORM_SCHEMA}.site_analytics (
@@ -85,6 +86,22 @@ async function umamiFetch(config: UmamiConfig, path: string, init: RequestInit =
   return response.status === 401 ? send(await getToken(config, true)) : response;
 }
 
+/** How Umami lists a site: its name, and the host it is served on */
+async function getWebsiteLabel(tenantId: string): Promise<{ name: string; domain: string } | null> {
+  const { rows } = await getPlatformPool().query(
+    `select o.name, o.slug, d.hostname as primary_domain from ${PLATFORM_SCHEMA}.organization o
+     left join ${PLATFORM_SCHEMA}.domains d on d.tenant_id = o.id and d.is_primary and d.verified_at is not null
+     where o.id = $1`,
+    [tenantId],
+  );
+  if (!rows[0]) return null;
+  const address = getSiteAddress(rows[0].slug, rows[0].primary_domain);
+  return {
+    name: String(rows[0].name || rows[0].slug).slice(0, 100),
+    domain: address ? new URL(address).host : rows[0].slug,
+  };
+}
+
 /** The site's Umami website id, creating the website when it has none */
 export async function ensureSiteAnalytics(tenantId: string): Promise<string | null> {
   const config = getUmamiConfig();
@@ -101,15 +118,10 @@ export async function ensureSiteAnalytics(tenantId: string): Promise<string | nu
     );
     if (existing.rows[0]) return existing.rows[0].website_id as string;
 
-    const { rows } = await pool.query(`select slug from ${PLATFORM_SCHEMA}.organization where id = $1`, [tenantId]);
-    if (!rows[0]) return null;
-    const slug: string = rows[0].slug;
-    const sitesDomain = getSitesDomain();
+    const label = await getWebsiteLabel(tenantId);
+    if (!label) return null;
 
-    const response = await umamiFetch(config, '/api/websites', {
-      method: 'POST',
-      body: JSON.stringify({ name: slug, domain: sitesDomain ? `${slug}.${sitesDomain}` : slug }),
-    });
+    const response = await umamiFetch(config, '/api/websites', { method: 'POST', body: JSON.stringify(label) });
     if (!response.ok) throw new UmamiError(`Could not create the Umami website (${response.status})`);
     const website = await response.json();
 
@@ -131,6 +143,35 @@ export async function ensureSiteAnalytics(tenantId: string): Promise<string | nu
   } finally {
     ensureInFlight.delete(tenantId);
   }
+}
+
+/**
+ * Bring the site's name and address in Umami up to date, after the site was
+ * renamed or its primary domain changed. Sites without a website yet get the
+ * current ones when it is created.
+ */
+export async function syncSiteAnalytics(tenantId: string): Promise<void> {
+  const config = getUmamiConfig();
+  if (!config) return;
+  const { rows } = await getPlatformPool().query(
+    `select website_id from ${PLATFORM_SCHEMA}.site_analytics where tenant_id = $1`,
+    [tenantId],
+  );
+  const label = rows[0] && await getWebsiteLabel(tenantId);
+  if (!label) return;
+
+  const response = await umamiFetch(config, `/api/websites/${rows[0].website_id}`, {
+    method: 'POST',
+    body: JSON.stringify(label),
+  });
+  if (!response.ok) throw new UmamiError(`Could not update the Umami website (${response.status})`);
+}
+
+/** Fire-and-forget syncSiteAnalytics: statistics never fail the change that triggered them */
+export function syncSiteAnalyticsLater(tenantId: string): void {
+  syncSiteAnalytics(tenantId).catch((error) => {
+    console.error('[analytics] Could not update the Umami website:', error);
+  });
 }
 
 /**

@@ -24,7 +24,7 @@ import { PostgresDialect } from 'kysely';
 import { getKnexClient } from '@/lib/knex-client';
 import { provisionTenant } from '@/lib/database/tenant-provisioning';
 import { setNewSiteName } from './site-defaults';
-import { ensureSiteAnalytics, SITE_ANALYTICS_TABLE_SQL } from './analytics';
+import { ensureSiteAnalytics, SITE_ANALYTICS_TABLE_SQL, syncSiteAnalyticsLater } from './analytics';
 import { isMultiTenant } from '@/lib/database/tenancy';
 import { getInvitationUrl, PLATFORM_AUTH_BASE_PATH, PLATFORM_SCHEMA } from './config';
 import { getPlatformPool } from './db';
@@ -171,6 +171,10 @@ export function createAuthOptions() {
           beforeCreateOrganization: async ({ organization: created }) => assertValidSlug(created.slug),
           beforeUpdateOrganization: async ({ organization: changes }) => {
             if (changes.slug !== undefined) assertValidSlug(changes.slug);
+          },
+          // Umami lists the site under its name
+          afterUpdateOrganization: async ({ organization: updated }) => {
+            if (updated) syncSiteAnalyticsLater(updated.id);
           },
           afterCreateOrganization: async ({ organization: created }) => {
             const knex = await getKnexClient();

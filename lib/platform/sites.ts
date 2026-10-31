@@ -41,7 +41,7 @@ export function getSiteUrl(slug: string): string | null {
  * Where a site is served (its other addresses redirect there): its primary
  * custom domain, the sites domain itself for the home site, else its subdomain.
  */
-function getSiteAddress(slug: string, primaryDomain: string | null): string | null {
+export function getSiteAddress(slug: string, primaryDomain: string | null): string | null {
   if (primaryDomain) return `https://${primaryDomain}`;
   const domain = getSitesDomain();
   if (domain && slug === getHomeSiteSlug()) return `https://${domain}`;
