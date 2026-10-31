@@ -1,0 +1,46 @@
+# Local run of the platform: like deploy/Caddyfile, but certificates come from
+# Caddy's own local CA instead of Let's Encrypt. *.localtest.me resolves to
+# 127.0.0.1 in public DNS, so no hosts file changes are needed.
+
+{
+	local_certs
+	on_demand_tls {
+		ask http://app:3002/ycode/api/platform/tls-check
+	}
+}
+
+# Visitor statistics: the Umami tracker and its collect endpoint on every site
+(umami) {
+	@umami path /_umami/script.js /_umami/api/send
+	handle @umami {
+		uri strip_prefix /_umami
+		reverse_proxy umami:3000
+	}
+}
+
+app.localtest.me, *.localtest.me {
+	tls internal
+	@stats host stats.localtest.me
+	handle @stats {
+		reverse_proxy umami:3000
+	}
+	import umami
+	handle {
+		reverse_proxy app:3002 {
+			flush_interval -1
+		}
+	}
+}
+
+# Customers' own domains (point them at 127.0.0.1 in your hosts file to try)
+https:// {
+	tls {
+		on_demand
+	}
+	import umami
+	handle {
+		reverse_proxy app:3002 {
+			flush_interval -1
+		}
+	}
+}

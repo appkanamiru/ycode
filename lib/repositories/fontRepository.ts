@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { SUPABASE_QUERY_LIMIT, SUPABASE_WRITE_BATCH_SIZE } from '@/lib/supabase-constants';
 import { cleanupOrphanedStorageFiles } from '@/lib/storage-utils';
 import { generateFontContentHash } from '@/lib/hash-utils';
@@ -8,7 +8,7 @@ import type { Font, CreateFontData, UpdateFontData } from '@/types';
  * Get all fonts (drafts only)
  */
 export async function getAllFonts(): Promise<Font[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -31,7 +31,7 @@ export async function getAllFonts(): Promise<Font[]> {
  * Get all published fonts
  */
 export async function getPublishedFonts(): Promise<Font[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -54,7 +54,7 @@ export async function getPublishedFonts(): Promise<Font[]> {
  * Get a font by ID (draft)
  */
 export async function getFontById(id: string): Promise<Font | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -79,7 +79,7 @@ export async function getFontById(id: string): Promise<Font | null> {
  * Create a new font
  */
 export async function createFont(fontData: CreateFontData): Promise<Font> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -116,7 +116,7 @@ export async function createFont(fontData: CreateFontData): Promise<Font> {
  * Update an existing font
  */
 export async function updateFont(id: string, fontData: UpdateFontData): Promise<Font> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -164,7 +164,7 @@ export async function updateFont(id: string, fontData: UpdateFontData): Promise<
  * Soft-delete a font
  */
 export async function deleteFont(id: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -183,7 +183,7 @@ export async function deleteFont(id: string): Promise<void> {
  * Get all unpublished fonts (fonts that have changes since last publish)
  */
 export async function getUnpublishedFonts(): Promise<Font[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -222,7 +222,7 @@ export async function getUnpublishedFonts(): Promise<Font[]> {
  * Publish all draft fonts to production
  */
 export async function publishFonts(): Promise<{ added: number; updated: number; deleted: number }> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');

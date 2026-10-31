@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { noCache } from '@/lib/api-response';
-import { getAuthUser } from '@/lib/supabase-auth';
+import { getAuthUser, updateUserProfile } from '@/lib/supabase-auth';
 
 /**
  * PUT /ycode/api/profile/name
@@ -21,21 +21,16 @@ export async function PUT(request: NextRequest) {
       return noCache({ error: 'Not authenticated' }, 401);
     }
 
-    // Update user metadata
-    const { data, error } = await auth.client.auth.updateUser({
-      data: {
-        display_name: name.trim(),
-        full_name: name.trim(),
-      },
-    });
-
-    if (error) {
-      return noCache({ error: error.message }, 400);
+    let user;
+    try {
+      user = await updateUserProfile(auth, { displayName: name.trim() });
+    } catch (error) {
+      return noCache({ error: error instanceof Error ? error.message : 'Failed to update name' }, 400);
     }
 
     return noCache({
       data: {
-        user: data.user,
+        user,
       },
     });
   } catch (error) {

@@ -1,4 +1,5 @@
-import { getSupabaseAdmin, getTenantIdFromHeaders } from '@/lib/supabase-server';
+import { getTenantIdFromHeaders } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { getKnexClient } from '@/lib/knex-client';
 import { SUPABASE_IN_FILTER_CHUNK_SIZE } from '@/lib/supabase-constants';
 import type { Collection, CreateCollectionData, UpdateCollectionData } from '@/types';
@@ -25,7 +26,7 @@ export interface QueryFilters {
  * @param filters.is_published - Get draft (false) or published (true) collections. Defaults to false (draft).
  */
 export async function getAllCollections(filters?: QueryFilters): Promise<Collection[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -103,7 +104,7 @@ export async function getCollectionsRaw(isPublished: boolean, tenantId?: string)
     }
     return await query;
   } catch {
-    const client = await getSupabaseAdmin(tenantId);
+    const client = await getDbClient(tenantId);
     if (!client) throw new Error('Supabase client not configured');
 
     const { data, error } = await client
@@ -124,7 +125,7 @@ export async function getCollectionsRaw(isPublished: boolean, tenantId?: string)
 export async function getPublishedCollectionIds(collectionIds: string[]): Promise<Set<string>> {
   if (collectionIds.length === 0) return new Set();
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -155,7 +156,7 @@ export async function getCollectionById(
   isPublished: boolean = false,
   includeDeleted: boolean = false
 ): Promise<Collection | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -187,7 +188,7 @@ export async function getCollectionById(
  * @param isPublished - Get draft (false) or published (true) version. Defaults to false (draft).
  */
 export async function getCollectionByName(name: string, isPublished: boolean = false): Promise<Collection | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -212,7 +213,7 @@ export async function getCollectionByName(name: string, isPublished: boolean = f
  * Create a new collection (draft by default)
  */
 export async function createCollection(collectionData: CreateCollectionData): Promise<Collection> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -252,7 +253,7 @@ export async function updateCollection(
   collectionData: UpdateCollectionData,
   isPublished: boolean = false
 ): Promise<Collection> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -284,7 +285,7 @@ export async function updateCollection(
  * @param isPublished - Which version to delete: draft (false) or published (true). Defaults to false (draft).
  */
 export async function deleteCollection(id: string, isPublished: boolean = false): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -377,7 +378,7 @@ export async function deleteCollection(id: string, isPublished: boolean = false)
  * @param isPublished - Which version to delete: draft (false) or published (true). Defaults to false (draft).
  */
 export async function hardDeleteCollection(id: string, isPublished: boolean = false): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -402,7 +403,7 @@ export async function hardDeleteCollection(id: string, isPublished: boolean = fa
  * @param id - Collection UUID
  */
 export async function publishCollection(id: string): Promise<Collection> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -455,7 +456,7 @@ function hasCollectionChanged(
  * Uses batch query instead of N+1.
  */
 export async function getUnpublishedCollections(): Promise<Collection[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -496,7 +497,7 @@ export async function getUnpublishedCollections(): Promise<Collection[]> {
  * Count unpublished collections without joining items or loading full rows.
  */
 export async function getUnpublishedCollectionsCount(): Promise<number> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -546,7 +547,7 @@ export async function getUnpublishedCollectionsCount(): Promise<number> {
  * @param collectionIds - Array of collection IDs in the desired order
  */
 export async function reorderCollections(isPublished: boolean, collectionIds: string[]): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');

@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import type { Version, CreateVersionData, VersionEntityType, VersionHistoryItem } from '@/types';
 
 /**
@@ -16,7 +16,7 @@ export const MAX_VERSIONS_PER_ENTITY = 50; // Maximum versions to keep per entit
  * Automatically deletes oldest versions if limit is reached
  */
 export async function createVersion(data: CreateVersionData): Promise<Version> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -60,7 +60,7 @@ export async function getVersionHistory(
   limit: number = 50,
   offset: number = 0
 ): Promise<Version[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -89,7 +89,7 @@ export async function getVersionHistorySummary(
   entityId: string,
   limit: number = 50
 ): Promise<VersionHistoryItem[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -114,7 +114,7 @@ export async function getVersionHistorySummary(
  * Get a specific version by ID
  */
 export async function getVersionById(id: string): Promise<Version | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -143,7 +143,7 @@ export async function getLatestVersion(
   entityType: VersionEntityType,
   entityId: string
 ): Promise<Version | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -175,7 +175,7 @@ export async function getVersionCount(
   entityType: VersionEntityType,
   entityId: string
 ): Promise<number> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -212,7 +212,7 @@ export async function getLatestSnapshot(
   entityType: VersionEntityType,
   entityId: string
 ): Promise<{ version: Version; snapshot: object } | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -247,7 +247,7 @@ export async function enforceVersionLimit(
   entityId?: string,
   maxVersions: number = MAX_VERSIONS_PER_ENTITY
 ): Promise<number> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -311,7 +311,7 @@ export async function enforceVersionLimit(
 export async function cleanupOldVersions(
   olderThanDays: number = 30
 ): Promise<number> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -346,7 +346,7 @@ export async function cleanupOldVersions(
  * Get versions by session ID (for grouped operations)
  */
 export async function getVersionsBySession(sessionId: string): Promise<Version[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -373,7 +373,7 @@ export async function deleteVersionsForEntity(
   entityType: VersionEntityType,
   entityId: string
 ): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');

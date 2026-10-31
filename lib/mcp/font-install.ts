@@ -112,6 +112,8 @@ export async function ensureFontsInstalled(families: Set<string>): Promise<Ensur
       category: entry.category,
       weights: getWeightsFromEntry(entry),
       variants: entry.variants,
+      // Variable axes (wght, wdth, opsz, ...) so the stylesheet loads them, as the editor does
+      ...(entry.axes?.length ? { axes: entry.axes } : {}),
     });
     result.installed.push(entry.family);
   }

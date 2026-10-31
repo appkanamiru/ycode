@@ -1,10 +1,10 @@
-import { getSupabaseAdmin } from '../lib/supabase-server';
+import { getDbClient } from '../lib/database/pg-client';
 import type { Layer } from '../types';
 
 const pageId = 'e9c9a71d-ff08-4eb5-84af-94bd21c9b046';
 
 async function checkLayerVariables() {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   
   if (!client) {
     console.error('Supabase not configured');

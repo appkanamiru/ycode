@@ -6,12 +6,13 @@ import { createCollection, getAllCollections } from '@/lib/repositories/collecti
 import { createField } from '@/lib/repositories/collectionFieldRepository';
 import { createItemsBulk, enrichItemsWithStatus } from '@/lib/repositories/collectionItemRepository';
 import { insertValuesBulk } from '@/lib/repositories/collectionItemValueRepository';
-import { findStatusFieldId } from '@/lib/collection-field-utils';
+import { BUILT_IN_FIELDS_END, BUILT_IN_FIELDS_START, findStatusFieldId } from '@/lib/collection-field-utils';
 import { createAsset } from '@/lib/repositories/assetRepository';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
+import { getSupabaseStorage } from '@/lib/supabase-storage';
 import { STORAGE_BUCKET, STORAGE_FOLDERS } from '@/lib/asset-constants';
 import { getSampleCollectionById } from '@/lib/sample-collections';
-import type { SampleCollectionDefinition, SampleFieldDefinition, SampleItemDefinition } from '@/lib/sample-collections';
+import type { SampleCollectionDefinition, SampleItemDefinition } from '@/lib/sample-collections';
 import type { Asset, Collection, CollectionField, CollectionItemWithValues } from '@/types';
 const SAMPLES_DIR = path.join(process.cwd(), 'storage', 'collections');
 
@@ -21,20 +22,6 @@ const SAMPLES_DIR = path.join(process.cwd(), 'storage', 'collections');
  * Creates a fully populated collection from a sample template.
  * Uses batch inserts for items and values for performance.
  */
-
-/** Built-in fields before custom fields */
-const BUILT_IN_FIELDS_START: SampleFieldDefinition[] = [
-  { name: 'ID', key: 'id', type: 'number', fillable: false, hidden: false, order: 0 },
-  { name: 'Status', key: 'status', type: 'status', fillable: false, hidden: false, order: 1, is_computed: true },
-  { name: 'Name', key: 'name', type: 'text', fillable: true, hidden: false, order: 2 },
-  { name: 'Slug', key: 'slug', type: 'text', fillable: true, hidden: false, order: 3 },
-];
-
-/** Built-in fields after custom fields (always at the end) */
-const BUILT_IN_FIELDS_END: SampleFieldDefinition[] = [
-  { name: 'Created Date', key: 'created_at', type: 'date', fillable: false, hidden: false, order: 0 },
-  { name: 'Updated Date', key: 'updated_at', type: 'date', fillable: false, hidden: false, order: 0 },
-];
 
 export interface SampleCollectionResult {
   collection: Collection;
@@ -81,7 +68,7 @@ export async function createSampleCollection(
     lookupKey: f.key,
     persistKey: null as string | null,
   }));
-  const startFields = BUILT_IN_FIELDS_START.map(f => ({ ...f, lookupKey: f.key, persistKey: f.key }));
+  const startFields = BUILT_IN_FIELDS_START.map((f, i) => ({ ...f, order: i, lookupKey: f.key, persistKey: f.key }));
   const endFieldsReordered = BUILT_IN_FIELDS_END.map((f, i) => ({
     ...f,
     order: BUILT_IN_FIELDS_START.length + sample.customFields.length + i,
@@ -156,7 +143,7 @@ export async function createSampleCollection(
  * Avoids duplicate storage files and DB records for the same sample image.
  */
 async function getOrUploadSampleImage(filename: string): Promise<Asset> {
-  const supabase = await getSupabaseAdmin();
+  const supabase = await getDbClient();
   if (!supabase) {
     throw new Error('Supabase not configured');
   }
@@ -187,7 +174,7 @@ async function getOrUploadSampleImage(filename: string): Promise<Asset> {
   const ext = path.extname(filename).slice(1) || 'jpg';
   const storagePath = `${STORAGE_FOLDERS.WEBSITE}/${timestamp}-${random}.${ext}`;
 
-  const { data, error } = await supabase.storage
+  const { data, error } = await (await getSupabaseStorage())
     .from(STORAGE_BUCKET)
     .upload(storagePath, buffer, {
       cacheControl: '3600',
@@ -199,7 +186,7 @@ async function getOrUploadSampleImage(filename: string): Promise<Asset> {
     throw new Error(`Failed to upload sample image "${filename}": ${error.message}`);
   }
 
-  const { data: urlData } = supabase.storage
+  const { data: urlData } = (await getSupabaseStorage())
     .from(STORAGE_BUCKET)
     .getPublicUrl(data.path);
 

@@ -36,7 +36,6 @@ import { canHaveChildren, assignOrderClassToNewLayer, collectAllSettingsIds, gen
 import { checkCircularReference, isCircularComponentReference } from '@/lib/component-utils';
 import { cn, generateId } from '@/lib/utils';
 import { toast } from 'sonner';
-import { componentsApi } from '@/lib/api';
 import type { Layer } from '@/types';
 import ComponentCard from './ComponentCard';
 import RenameComponentDialog from './RenameComponentDialog';
@@ -44,6 +43,9 @@ import SaveLayoutDialog from './SaveLayoutDialog';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useEditorStore } from '@/stores/useEditorStore';
 import { useComponentsStore } from '@/stores/useComponentsStore';
+import { flattenInlinedComponents } from '@/lib/templates/inlined-components';
+import { localizeTemplateTexts } from '@/lib/templates/localize';
+import { useLocalisationStore } from '@/stores/useLocalisationStore';
 import { useEditorActions } from '@/hooks/use-editor-url';
 import { useLocalizationMode } from '@/hooks/use-localization-mode';
 import type { UseLiveLayerUpdatesReturn } from '@/hooks/use-live-layer-updates';
@@ -162,120 +164,6 @@ const elementCategories: Record<string, string[]> = {
   Utilities: ['map', 'slider', 'lightbox', 'localeSelector', 'htmlEmbed'],
 };
 
-/**
- * Check if a layer tree contains any inlined components
- */
-function hasInlinedComponents(layer: Layer): boolean {
-  if ((layer as any)._inlinedComponentName) return true;
-  if (layer.children) {
-    return layer.children.some(child => hasInlinedComponents(child));
-  }
-  return false;
-}
-
-/**
- * Process a layout layer tree to restore inlined components.
- * When a layout contains _inlinedComponentName, we create actual components
- * and replace the inlined content with component instances.
- */
-async function restoreInlinedComponents(
-  layer: Layer,
-  existingComponents: { id: string; name: string }[],
-  createdComponents: Map<string, string> // name -> componentId
-): Promise<Layer> {
-  const newLayer = { ...layer } as Layer & {
-    _inlinedComponentName?: string;
-    _inlinedComponentVariables?: any[];
-  };
-
-  // Check if this layer has inlined component data
-  if (newLayer._inlinedComponentName && newLayer.children?.length) {
-    const componentName = newLayer._inlinedComponentName;
-    const componentVariables = newLayer._inlinedComponentVariables;
-
-    // Check if we already created this component in this batch
-    let componentId: string | undefined = createdComponents.get(componentName);
-
-    if (!componentId) {
-      // Check if a component with this name already exists
-      const existing = existingComponents.find(c => c.name === componentName);
-
-      if (existing) {
-        componentId = existing.id;
-      } else {
-        // Create new component from inlined layers (including variables)
-        try {
-          // Debug: check if layers have interactions and log layer IDs
-          const collectLayerIds = (layers: any[]): string[] => {
-            const ids: string[] = [];
-            for (const l of layers) {
-              if (l.id) ids.push(l.id);
-              if (l.children) ids.push(...collectLayerIds(l.children));
-            }
-            return ids;
-          };
-          const collectInteractionTargets = (layers: any[]): string[] => {
-            const targets: string[] = [];
-            for (const l of layers) {
-              if (l.interactions) {
-                for (const int of l.interactions) {
-                  for (const tween of int.tweens || []) {
-                    if (tween.layer_id) targets.push(tween.layer_id);
-                  }
-                }
-              }
-              if (l.children) targets.push(...collectInteractionTargets(l.children));
-            }
-            return targets;
-          };
-
-          const layerIds = collectLayerIds(newLayer.children || []);
-          const interactionTargets = collectInteractionTargets(newLayer.children || []);
-          const missingTargets = interactionTargets.filter(t => !layerIds.includes(t));
-
-          if (missingTargets.length > 0) {
-            console.warn(`[restoreInlinedComponents] ⚠️ Missing layer targets:`, missingTargets);
-          }
-
-          const result = await componentsApi.create({
-            name: componentName,
-            layers: newLayer.children,
-            variables: componentVariables,
-          });
-          const newId = result.data?.id;
-          if (newId) {
-            componentId = newId;
-            createdComponents.set(componentName, newId);
-          }
-        } catch (error) {
-          console.error(`Failed to create component "${componentName}":`, error);
-        }
-      }
-    }
-
-    if (componentId) {
-      // Convert to component instance
-      newLayer.componentId = componentId;
-      newLayer.children = []; // Clear inlined children
-      delete newLayer._inlinedComponentName;
-      delete newLayer._inlinedComponentVariables;
-    }
-  }
-
-  // Recursively process children that weren't converted to component instances
-  // Process sequentially to avoid race conditions when creating components
-  if (newLayer.children?.length && !newLayer.componentId) {
-    const processedChildren: Layer[] = [];
-    for (const child of newLayer.children) {
-      const processed = await restoreInlinedComponents(child, existingComponents, createdComponents);
-      processedChildren.push(processed);
-    }
-    newLayer.children = processedChildren;
-  }
-
-  return newLayer;
-}
-
 export default function ElementLibrary({ isOpen, onClose, liveLayerUpdates }: ElementLibraryProps) {
   const addLayerFromTemplate = usePagesStore((s) => s.addLayerFromTemplate);
   const updateLayer = usePagesStore((s) => s.updateLayer);
@@ -305,7 +193,6 @@ export default function ElementLibrary({ isOpen, onClose, liveLayerUpdates }: El
   const getDeletePreview = useComponentsStore((s) => s.getDeletePreview);
   const loadComponentDraft = useComponentsStore((s) => s.loadComponentDraft);
   const getComponentById = useComponentsStore((s) => s.getComponentById);
-  const loadComponents = useComponentsStore((s) => s.loadComponents);
   const { openComponent } = useEditorActions();
 
   // Delete component state
@@ -439,7 +326,7 @@ export default function ElementLibrary({ isOpen, onClose, liveLayerUpdates }: El
       const layers = useComponentsStore.getState().componentDrafts[editingComponentId]?.[activeComponentVariantId] || [];
       const parentId = selectedLayerId || layers[0]?.id || 'body';
 
-      const template = getLayerFromTemplate(elementType);
+      const template = localizeTemplateTexts(getLayerFromTemplate(elementType), useLocalisationStore.getState().defaultLocale?.code);
       const displayName = getBlockName(elementType);
 
       // Collect existing settings IDs to generate unique ones
@@ -768,20 +655,8 @@ export default function ElementLibrary({ isOpen, onClose, liveLayerUpdates }: El
         newLayer = updateForAttributes(newLayer);
       }
 
-      // Restore inlined components (create actual components from inlined data)
-      if (hasInlinedComponents(newLayer)) {
-        const createdComponents = new Map<string, string>();
-        newLayer = await restoreInlinedComponents(
-          newLayer,
-          components.map(c => ({ id: c.id, name: c.name })),
-          createdComponents
-        );
-
-        // Refresh components store if new components were created
-        if (createdComponents.size > 0) {
-          await loadComponents();
-        }
-      }
+      // Components inlined in the layout are inserted as plain layers
+      newLayer = flattenInlinedComponents(newLayer);
 
       // Check for circular reference: layout may contain component instances
       // that reference the component being edited (or one of its ancestors)
@@ -958,20 +833,8 @@ export default function ElementLibrary({ isOpen, onClose, liveLayerUpdates }: El
       newLayer = updateForAttributes(newLayer);
     }
 
-    // Restore inlined components (create actual components from inlined data)
-    if (hasInlinedComponents(newLayer)) {
-      const createdComponents = new Map<string, string>();
-      newLayer = await restoreInlinedComponents(
-        newLayer,
-        components.map(c => ({ id: c.id, name: c.name })),
-        createdComponents
-      );
-
-      // Refresh components store if new components were created
-      if (createdComponents.size > 0) {
-        await loadComponents();
-      }
-    }
+    // Components inlined in the layout are inserted as plain layers
+    newLayer = flattenInlinedComponents(newLayer);
 
     // Find parent layer
     const findLayerWithParent = (tree: any[], id: string, parent: any | null = null): { layer: any; parent: any | null } | null => {

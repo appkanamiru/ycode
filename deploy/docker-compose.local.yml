@@ -1,0 +1,22 @@
+# Local run on your machine, on top of docker-compose.yml:
+#
+#   docker compose --env-file deploy/local.env -f deploy/docker-compose.yml -f deploy/docker-compose.local.yml up -d --build
+#
+# Editor: https://app.localtest.me/ycode, sites: https://<slug>.localtest.me,
+# emails (sign-in codes, invitations): http://localhost:8025
+
+services:
+  # Plain Caddy: local certificates need no DNS provider
+  caddy:
+    build: !reset null
+    image: caddy:2.11.7
+    environment: !reset {}
+    volumes:
+      - ./Caddyfile.local:/etc/caddy/Caddyfile:ro
+
+  # Catches outgoing email instead of delivering it
+  mailpit:
+    image: axllent/mailpit:v1.31.5
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8025:8025"

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   buildYcodeHtmlComments,
   formatYcodePublishedCommentDate,
+  getSiteGenerator,
   insertYcodeHtmlComments,
 } from '@/lib/ycode-html-comment';
 
@@ -70,4 +71,19 @@ test('inserts before html when doctype is missing', () => {
     stamped,
     '<!-- Made in Ycode · ycode.com -->\n<html><head></head></html>',
   );
+});
+
+test('names the configured generator in the stamp', () => {
+  process.env.SITE_GENERATOR_NAME = 'Appkanamiru';
+  process.env.SITE_GENERATOR_URL = 'appkanamiru.cz';
+  try {
+    const html = insertYcodeHtmlComments('<!DOCTYPE html><html></html>');
+    assert.match(html, /<!-- Made in Appkanamiru · appkanamiru\.cz -->/);
+    assert.equal(insertYcodeHtmlComments(html), html);
+    assert.deepEqual(getSiteGenerator(), { name: 'Appkanamiru', url: 'appkanamiru.cz' });
+  } finally {
+    delete process.env.SITE_GENERATOR_NAME;
+    delete process.env.SITE_GENERATOR_URL;
+  }
+  assert.deepEqual(getSiteGenerator(), { name: 'Ycode', url: 'ycode.com' });
 });

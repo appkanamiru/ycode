@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { getSettingsByKeys } from '@/lib/repositories/settingsRepository';
 import { credentials } from '@/lib/credentials';
+import { isPostgresDriver } from '@/lib/database/pg-client';
 import { getRequestOrigin, getSiteBaseUrl } from '@/lib/url-utils';
 import { tagResponseForPublish } from '@/lib/response-cache-tag';
 import type { SitemapSettings } from '@/types';
@@ -21,7 +22,8 @@ export async function GET() {
 
     const requestOrigin = getRequestOrigin(await headers());
 
-    const hasSupabaseCredentials = await credentials.exists();
+    // Plain Postgres needs no Supabase credentials
+    const hasSupabaseCredentials = isPostgresDriver() || await credentials.exists();
     if (!hasSupabaseCredentials) {
       const baseUrl = getSiteBaseUrl({ requestOrigin }) || '';
       const fallback = `# Default robots.txt

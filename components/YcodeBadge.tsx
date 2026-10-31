@@ -1,27 +1,71 @@
+import type { CSSProperties } from 'react';
+
+import { getSiteGenerator, type SiteGenerator } from '@/lib/site-generator';
+
+const BADGE_STYLE: CSSProperties = {
+  height: 'auto',
+  background: '#050606',
+  padding: '12px 14px',
+  width: 'auto',
+  position: 'fixed',
+  bottom: '10px',
+  right: '10px',
+  borderRadius: '8px',
+  display: 'flex',
+  alignItems: 'center',
+  zIndex: 9999,
+  opacity: 1,
+};
+
+interface YcodeBadgeProps {
+  /** Client components pass the generator from the server; the env is not readable there */
+  generator?: SiteGenerator;
+}
+
 /**
- * "Made in Ycode" badge shown on published pages when enabled in settings
+ * "Made in …" badge shown on published pages: Ycode's own, or the platform's
+ * when SITE_GENERATOR_NAME rebrands it (its mark is the app icon).
  */
-export default function YcodeBadge() {
+export default function YcodeBadge({ generator = getSiteGenerator() }: YcodeBadgeProps) {
+  if (generator.name !== 'Ycode') {
+    const href = generator.url ? `https://${generator.url}` : undefined;
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`This website was built using ${generator.name}.`}
+        style={{ ...BADGE_STYLE, padding: '10px 12px', gap: '8px', textDecoration: 'none' }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/icon.svg" alt=""
+          width={16} height={16}
+          style={{ display: 'block', borderRadius: '3px' }}
+        />
+        <span
+          style={{
+            color: '#FFFFFF',
+            fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+            fontSize: '12px',
+            fontWeight: 600,
+            lineHeight: '16px',
+            letterSpacing: '0.01em',
+          }}
+        >
+          Made in {generator.name}
+        </span>
+      </a>
+    );
+  }
+
   return (
     <a
       href="https://ycode.com"
       target="_blank"
       rel="noopener noreferrer"
       aria-label="This website was built using Ycode."
-      style={{
-        height: 'auto',
-        background: '#050606',
-        padding: '12px 14px',
-        width: 'auto',
-        position: 'fixed',
-        bottom: '10px',
-        right: '10px',
-        borderRadius: '8px',
-        display: 'flex',
-        alignItems: 'center',
-        zIndex: 9999,
-        opacity: 1,
-      }}
+      style={BADGE_STYLE}
     >
       <svg
         width="12px"

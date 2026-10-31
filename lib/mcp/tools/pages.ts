@@ -6,6 +6,7 @@ import { upsertDraftLayers } from '@/lib/repositories/pageLayersRepository';
 import { getSettingByKey, setSetting } from '@/lib/repositories/settingsRepository';
 import { broadcastPageCreated, broadcastPageUpdated, broadcastPageDeleted, broadcastLayersChanged } from '@/lib/mcp/broadcast';
 import type { Redirect } from '@/types';
+import { reportPageEvent } from '@/lib/services/siteEvents';
 
 const REDIRECTS_KEY = 'redirects';
 
@@ -96,6 +97,7 @@ DRAFT STATUS: Set is_publishable to false to keep this page as a draft that is s
         error_page: null,
         settings: {},
       });
+      void reportPageEvent('created', page);
 
       const initialLayers = [{
         id: 'body',
@@ -133,6 +135,7 @@ DRAFT STATUS: Set is_publishable to false to keep the page as a draft that is sk
     },
     async ({ page_id, ...data }) => {
       const page = await updatePage(page_id, data);
+      void reportPageEvent('updated', page);
       broadcastPageUpdated(page_id, data).catch(() => {});
       return { content: [{ type: 'text' as const, text: JSON.stringify(page) }] };
     },
@@ -227,6 +230,7 @@ how next-item / previous-item links traverse the collection.`,
       }
 
       const page = await updatePage(page_id, { settings });
+      void reportPageEvent('updated', page);
       broadcastPageUpdated(page_id, { settings }).catch(() => {});
       return { content: [{ type: 'text' as const, text: JSON.stringify({ message: 'Updated page settings', settings: page.settings }) }] };
     },
@@ -238,6 +242,7 @@ how next-item / previous-item links traverse the collection.`,
     { page_id: z.string().describe('The page ID to duplicate') },
     async ({ page_id }) => {
       const page = await duplicatePage(page_id);
+      if (page) void reportPageEvent('created', page);
       broadcastPageCreated(page).catch(() => {});
       return { content: [{ type: 'text' as const, text: JSON.stringify({ message: `Duplicated page as "${page.name}"`, page }) }] };
     },
@@ -248,8 +253,10 @@ how next-item / previous-item links traverse the collection.`,
     'Permanently delete a page and all its layers',
     { page_id: z.string().describe('The page ID to delete') },
     async ({ page_id }) => {
+      const deleted = await getPageById(page_id).catch(() => null);
       await deletePage(page_id);
       broadcastPageDeleted(page_id).catch(() => {});
+      if (deleted) void reportPageEvent('deleted', deleted);
       return { content: [{ type: 'text' as const, text: `Page ${page_id} deleted successfully.` }] };
     },
   );

@@ -4,7 +4,7 @@
  * Business logic for page folder operations
  */
 
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import type { PageFolder } from '@/types';
 
 /**
@@ -82,7 +82,7 @@ export async function publishFolders(
   folderIds: string[] = [],
   pageIds?: string[]
 ): Promise<PublishFoldersResult> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');

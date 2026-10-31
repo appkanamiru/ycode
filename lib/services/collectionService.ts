@@ -12,7 +12,8 @@
  */
 
 import { withTransaction } from '../database/transaction';
-import { getSupabaseAdmin, getTenantIdFromHeaders } from '@/lib/supabase-server';
+import { getTenantIdFromHeaders } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { getKnexClient } from '@/lib/knex-client';
 import { SUPABASE_IN_FILTER_CHUNK_SIZE, SUPABASE_WRITE_BATCH_SIZE } from '@/lib/supabase-constants';
 import { getCollectionById, hardDeleteCollection } from '@/lib/repositories/collectionRepository';
@@ -336,7 +337,7 @@ async function publishCollectionMetadata(
   prefetchedDraft?: Collection,
   prefetched?: CollectionPrefetch,
 ): Promise<boolean> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -392,7 +393,7 @@ async function publishAllFields(
   collectionId: string,
   prefetched?: CollectionPrefetch,
 ): Promise<number> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -483,7 +484,7 @@ async function publishSelectedItems(
   itemIds?: string[],
   prefetched?: CollectionPrefetch,
 ): Promise<{ itemsCount: number; valuesCount: number; assetsCount: number; itemsDurationMs: number; valuesDurationMs: number; renamedItemOldSlugs: string[]; unpublishedItemSlugs: string[] }> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -714,7 +715,7 @@ async function publishItemValuesBatch(
   prefetchedDraftValues?: PublishValueRow[],
   prefetchedPublishedValues?: PublishValueRow[],
 ): Promise<number> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -894,7 +895,7 @@ async function itemsWithValueChanges(itemIds: string[]): Promise<string[]> {
 async function cleanupDeletedPublishedItems(
   collectionId: string,
 ): Promise<{ deletedCount: number; deletedSlugs: string[] }> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -983,7 +984,7 @@ async function cleanupOrphanedPublishedItems(
   collectionId: string,
   prefetched?: CollectionPrefetch,
 ): Promise<{ deletedCount: number; deletedSlugs: string[] }> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -1078,7 +1079,7 @@ async function cleanupOrphanedPublishedItems(
  */
 async function cleanupDeletedPublishedFields(collectionId: string): Promise<void> {
   // Get all fields (including soft-deleted) from draft by querying directly
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -1153,7 +1154,7 @@ async function getCollectionIdsWithDeletedDrafts(
     const rows = await query;
     return new Set(rows.map((r: { collection_id: string }) => r.collection_id));
   } catch {
-    const client = await getSupabaseAdmin();
+    const client = await getDbClient();
     if (!client) throw new Error('Supabase client not configured');
     const { data, error } = await client
       .from(table)
@@ -1184,7 +1185,7 @@ export async function getCollectionsNeedingDeletionCleanup(): Promise<Set<string
  * Called during publish operations to ensure deleted collections are permanently removed
  */
 export async function cleanupDeletedCollections(): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -1311,7 +1312,7 @@ export async function needsPublishing(collectionId: string): Promise<boolean> {
 export async function groupItemsByCollection(
   itemIds: string[]
 ): Promise<Map<string, string[]>> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');

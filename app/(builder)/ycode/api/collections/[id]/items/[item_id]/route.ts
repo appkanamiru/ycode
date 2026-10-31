@@ -3,6 +3,7 @@ import { getItemWithValues, updateItem, deleteItem, enrichSingleItemWithStatus }
 import { setValuesByFieldName } from '@/lib/repositories/collectionItemValueRepository';
 import { deleteTranslationsInBulk } from '@/lib/repositories/translationRepository';
 import { noCache } from '@/lib/api-response';
+import { prepareCollectionItemsDeleted, reportCollectionItemChanged, reportCollectionItemsDeleted } from '@/lib/services/siteEvents';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -80,6 +81,8 @@ export async function PUT(
       );
     }
 
+    void reportCollectionItemChanged('updated', collectionId, itemId);
+
     // Get updated item with values and enrich with status
     const updatedItem = await getItemWithValues(itemId, false);
     if (updatedItem) {
@@ -109,8 +112,11 @@ export async function DELETE(
     const { item_id } = await params;
     const itemId = item_id; // UUID string, no parsing needed
 
+    const deleted = await prepareCollectionItemsDeleted([itemId]);
+
     // Delete the collection item
     await deleteItem(itemId);
+    void reportCollectionItemsDeleted(deleted);
 
     // Delete all translations for this CMS item
     await deleteTranslationsInBulk('cms', itemId);

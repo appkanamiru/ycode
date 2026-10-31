@@ -6,6 +6,7 @@ import { Layer, FieldVariable, CollectionVariable, CollectionItemWithValues, Col
 import { escapeHtml } from '@/lib/escape-html';
 import { generateId } from '@/lib/utils';
 import { resolveInlineVariablesFromData } from '@/lib/inline-variables';
+import { DEFAULT_VALUE_FORMAT, type ValueFormat } from '@/lib/value-format';
 import { DEFAULT_TEXT_STYLES } from '@/lib/text-format-utils';
 import { getCmsFieldBinding, isRichTextEmpty } from '@/lib/tiptap-utils';
 import { applyComponentOverrides } from '@/lib/resolve-components';
@@ -44,7 +45,8 @@ export function parseStyleStringToObject(style: string): Record<string, string> 
 /**
  * Apply user-defined custom attributes onto a React props object, mapping HTML
  * attribute names to their JSX equivalents. A string `style` attribute is parsed
- * into an object and merged with any existing style (React rejects style strings).
+ * into an object and merged with any existing style (React rejects style strings),
+ * and a `class` attribute is added to the layer's classes instead of replacing them.
  */
 export function applyCustomAttributes(
   target: Record<string, unknown>,
@@ -57,14 +59,19 @@ export function applyCustomAttributes(
       target.style = { ...existing, ...parseStyleStringToObject(value) };
       continue;
     }
+    if (jsxName === 'className') {
+      target.className = [target.className, value].filter(Boolean).join(' ');
+      continue;
+    }
     target[jsxName] = value;
   }
 }
 
 /**
  * HTML-string counterpart of applyCustomAttributes: returns `attrs` with each
- * custom attribute replacing a same-named one, plus a custom `style` parsed for
- * merging into the inline styles. Names that would break the markup are skipped.
+ * custom attribute replacing a same-named one (a custom `class` is added to the
+ * existing one), plus a custom `style` parsed for merging into the inline
+ * styles. Names that would break the markup are skipped.
  */
 export function applyCustomAttributesToHtml(
   attrs: string[],
@@ -77,6 +84,12 @@ export function applyCustomAttributesToHtml(
     const lower = name.toLowerCase();
     if (lower === 'style') {
       styles = { ...styles, ...parseStyleStringToObject(String(value)) };
+      continue;
+    }
+    if (lower === 'class') {
+      const existing = result.find((a) => /^class="/i.test(a))?.slice('class="'.length, -1);
+      result = result.filter((a) => !/^class(=|$)/i.test(a));
+      result.push(`class="${[existing, escapeHtml(String(value))].filter(Boolean).join(' ')}"`);
       continue;
     }
     result = result.filter((a) => {
@@ -1632,15 +1645,15 @@ export function resolveFieldValue(
 export function getTextWithBinding(
   layer: Layer,
   collectionItemData?: Record<string, string>,
-  timezone: string = 'UTC'
+  valueFormat: ValueFormat = DEFAULT_VALUE_FORMAT
 ): string | undefined {
   // Check variables.text (DynamicTextVariable with inline variables)
   const textVariable = layer.variables?.text;
   if (textVariable && textVariable.type === 'dynamic_text') {
     const content = textVariable.data.content;
     if (content.includes('<ycode-inline-variable>')) {
-      // Resolve inline variables with timezone-aware date formatting
-      return resolveInlineVariablesFromData(content, collectionItemData, null, timezone);
+      // Resolve inline variables with timezone- and language-aware formatting
+      return resolveInlineVariablesFromData(content, collectionItemData, null, valueFormat);
     }
     return content;
   }

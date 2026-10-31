@@ -19,7 +19,6 @@ import {
   DialogClose,
 } from '@/components/ui/dialog';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { createClient } from '@/lib/supabase-browser';
 
 export default function ProfilePage() {
   const user = useAuthStore((state) => state.user);
@@ -38,6 +37,15 @@ export default function ProfilePage() {
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
+  // Passwordless sign in (multi-tenant platform): no password, and the email is the login
+  const [passwordless, setPasswordless] = useState(false);
+  useEffect(() => {
+    fetch('/ycode/api/setup/status')
+      .then((response) => response.json())
+      .then((status) => setPasswordless(status.sign_in === 'code'))
+      .catch(() => {});
+  }, []);
 
   // Form states
   const [nameInput, setNameInput] = useState('');
@@ -317,8 +325,7 @@ export default function ProfilePage() {
       }
 
       // Sign out and redirect
-      const supabase = await createClient();
-      await supabase.auth.signOut();
+      await signOut();
       window.location.href = '/';
     } catch (error) {
       console.error('Failed to delete profile:', error);
@@ -418,19 +425,22 @@ export default function ProfilePage() {
               <div className="text-sm text-muted-foreground">Email address</div>
               <div className="flex items-center gap-4">
                 <span className="text-sm">{email}</span>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setIsEmailDialogOpen(true)}
-                >
-                  Edit
-                </Button>
+                {!passwordless && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setIsEmailDialogOpen(true)}
+                  >
+                    Edit
+                  </Button>
+                )}
               </div>
             </div>
 
-            <FieldSeparator className="col-span-2" />
+            {!passwordless && <FieldSeparator className="col-span-2" />}
 
             {/* Password */}
+            {!passwordless && (
             <div className="flex items-center justify-between py-4">
               <div className="text-sm text-muted-foreground">Password</div>
               <div className="flex items-center gap-4">
@@ -444,6 +454,7 @@ export default function ProfilePage() {
                 </Button>
               </div>
             </div>
+            )}
 
           </div>
 

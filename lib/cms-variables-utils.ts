@@ -19,12 +19,14 @@ import { PAGINATION_VARIABLE_LABELS } from '@/lib/pagination-text-utils';
  * - rich_text: extracts plain text from Tiptap JSON
  * Returns the original value for other fields
  * @param format - Optional format preset ID (e.g. 'date-long', 'number-decimal')
+ * @param locale - Language for dates and numbers (English when not given)
  */
 export function formatFieldValue(
   value: unknown,
   fieldType: string | null | undefined,
   timezone: string = 'UTC',
-  format?: string
+  format?: string,
+  locale?: string
 ): string {
   if (value === null || value === undefined) return '';
 
@@ -47,21 +49,21 @@ export function formatFieldValue(
   // Handle date fields with optional format preset
   if (isDateFieldType(fieldType) && typeof value === 'string') {
     if (format) {
-      return formatDateWithPreset(value, format, timezone);
+      return formatDateWithPreset(value, format, timezone, locale);
     }
     // date_only values are timezone-neutral calendar dates: format without
     // timezone conversion so the day never shifts.
     if (fieldType === 'date_only') {
-      return formatDateOnly(value);
+      return formatDateOnly(value, locale);
     }
-    return formatDateInTimezone(value, timezone, 'display');
+    return formatDateInTimezone(value, timezone, 'display', locale);
   }
 
   // Handle number fields with optional format preset
   if (fieldType === 'number' && format) {
     const numValue = typeof value === 'number' ? value : parseFloat(String(value));
     if (!isNaN(numValue)) {
-      return formatNumberWithPreset(numValue, format);
+      return formatNumberWithPreset(numValue, format, locale);
     }
   }
 

@@ -14,7 +14,7 @@ import type { FontPreload } from '@/lib/font-utils'
 import { htmlDirFromLang } from '@/lib/html-lang'
 import type { HreflangAlternate } from '@/lib/hreflang-utils'
 import { getEffectiveApplyStyle } from '@/lib/animation-utils'
-import { buildYcodeHtmlComments } from '@/lib/ycode-html-comment'
+import { buildYcodeHtmlComments, getSiteGenerator } from '@/lib/ycode-html-comment'
 
 import type { Layer, Page, PageFolder } from '@/types'
 
@@ -688,7 +688,7 @@ export function buildDocument({
   const head: string[] = []
   head.push('<meta charset="UTF-8" />')
   head.push('<meta name="viewport" content="width=device-width, initial-scale=1.0" />')
-  head.push('<meta name="generator" content="Ycode" />')
+  head.push(`<meta name="generator" content="${escapeHtml(getSiteGenerator().name)}" />`)
   head.push(`<title>${escapeHtml(title)}</title>`)
   if (description) {
     head.push(`<meta name="description" content="${escapeHtml(description)}" />`)

@@ -5,14 +5,14 @@
  * Supports draft/published workflow with composite primary key (id, is_published)
  */
 
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import type { Locale, CreateLocaleData, UpdateLocaleData } from '@/types';
 
 /**
  * Get all locales (draft by default)
  */
 export async function getAllLocales(isPublished: boolean = false, tenantId?: string): Promise<Locale[]> {
-  const client = await getSupabaseAdmin(tenantId);
+  const client = await getDbClient(tenantId);
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -37,7 +37,7 @@ export async function getAllLocales(isPublished: boolean = false, tenantId?: str
  * With composite primary key, we need to specify is_published to get a single row
  */
 export async function getLocaleById(id: string, isPublished: boolean = false): Promise<Locale | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -64,7 +64,7 @@ export async function getLocaleById(id: string, isPublished: boolean = false): P
  * Get locale by code (draft by default)
  */
 export async function getLocaleByCode(code: string, isPublished: boolean = false): Promise<Locale | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -91,7 +91,7 @@ export async function getLocaleByCode(code: string, isPublished: boolean = false
  * Get the default locale (draft by default)
  */
 export async function getDefaultLocale(isPublished: boolean = false): Promise<Locale | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -122,7 +122,7 @@ export async function getDefaultLocale(isPublished: boolean = false): Promise<Lo
 export async function createLocale(
   localeData: CreateLocaleData
 ): Promise<{ locale: Locale; locales: Locale[] }> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -200,7 +200,7 @@ export async function updateLocale(
   id: string,
   updates: UpdateLocaleData
 ): Promise<{ locale: Locale; locales: Locale[] }> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -240,7 +240,7 @@ export async function updateLocale(
  * Delete a locale (soft delete - sets deleted_at timestamp)
  */
 export async function deleteLocale(id: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -266,7 +266,7 @@ export async function deleteLocale(id: string): Promise<void> {
  * Set a locale as the default
  */
 export async function setDefaultLocale(id: string): Promise<Locale> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }

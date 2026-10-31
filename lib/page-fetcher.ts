@@ -1,6 +1,6 @@
 import { cache } from 'react';
 import { escapeHtml } from '@/lib/escape-html';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { getKnexClient } from '@/lib/knex-client';
 import { buildSlugPath, buildDynamicPageUrl, buildLocalizedDynamicPageUrl, detectLocaleFromPath, matchPageWithTranslatedSlugs, matchDynamicPageWithTranslatedSlugs } from '@/lib/page-utils';
 import { getItemWithValues, getItemsWithValues, getItemsWithValuesByIds, getItemIdsByFieldValue, getItemsByCollectionId, getSlugsByItemIds } from '@/lib/repositories/collectionItemRepository';
@@ -44,6 +44,8 @@ import { buildPaginationLinkAttrs, collectPaginationMeta, resolveCurrentPage } f
 import { formatFieldValue, resolveFieldFromSources } from '@/lib/cms-variables-utils';
 import { buildLayerTranslationKey, getTranslationByKey, hasValidTranslationValue, getTranslationValue, injectTranslatedText, applyCmsTranslations, translateComponentOverrides } from '@/lib/localisation-utils';
 import { formatDateFieldsInItemValues } from '@/lib/date-format-utils';
+import { DEFAULT_VALUE_FORMAT, resolveFormatLocale, type ValueFormat } from '@/lib/value-format';
+import { getDefaultLocale } from '@/lib/repositories/localeRepository';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
 import { getAllGlobalVariables } from '@/lib/repositories/globalVariableRepository';
 import { parseMultiAssetFieldValue, buildAssetVirtualValues } from '@/lib/multi-asset-utils';
@@ -255,7 +257,7 @@ export async function loadTranslationsForLocale(
   tenantId?: string
 ): Promise<{ locale: Locale | null; translations: Record<string, Translation> }> {
   try {
-    const supabase = await getSupabaseAdmin(tenantId);
+    const supabase = await getDbClient(tenantId);
 
     if (!supabase) {
       return { locale: null, translations: {} };
@@ -416,7 +418,7 @@ async function getCollectionItemBySlug(
   tenantId?: string
 ): Promise<CollectionItemWithValues | null> {
   try {
-    const supabase = await getSupabaseAdmin(tenantId);
+    const supabase = await getDbClient(tenantId);
 
     if (!supabase) {
       return null;
@@ -517,7 +519,7 @@ async function fetchPageByPathInternal(
 ): Promise<PageData | null> {
   try {
     const resolveLayers = options?.resolveLayers !== false;
-    const supabase = await getSupabaseAdmin(tenantId);
+    const supabase = await getDbClient(tenantId);
 
     if (!supabase) {
       console.error('Supabase not configured');
@@ -552,6 +554,9 @@ async function fetchPageByPathInternal(
       translations = trans;
     }
 
+    // Dates and numbers in the page's language (the default one on unprefixed paths)
+    const valueFormat: ValueFormat = { timezone, locale: resolveFormatLocale(detectedLocale, availableLocales) };
+
     if (!pages || !folders) {
       return null;
     }
@@ -562,7 +567,7 @@ async function fetchPageByPathInternal(
     // try to fetch the homepage
     if (targetPath === '' && detectedLocale) {
       // Pass preloaded components and translations so CMS content is translated
-      const homepageData = await fetchHomepage(isPublished, paginationContext, components, tenantId, translations);
+      const homepageData = await fetchHomepage(isPublished, paginationContext, components, tenantId, translations, detectedLocale.code);
       if (homepageData) {
         // Components and collection layers are already resolved by fetchHomepage
         // Apply translations for the detected locale
@@ -744,7 +749,7 @@ async function fetchPageByPathInternal(
             ]);
             const layersWithInjectedData = await Promise.all(
               layersWithComponents.map((layer: Layer) =>
-                injectCollectionData(layer, enhancedItemValues, collectionFields, isPublished, undefined, rawItemValues, timezone, dynamicPageGlobals, dynamicPageGlobalsMeta)
+                injectCollectionData(layer, enhancedItemValues, collectionFields, isPublished, undefined, rawItemValues, valueFormat, dynamicPageGlobals, dynamicPageGlobalsMeta)
               )
             );
 
@@ -753,11 +758,11 @@ async function fetchPageByPathInternal(
             // Pass enhanced values so nested collections can filter based on dynamic page data
             // Pass collectionItem.id so inverse reference layers can query by parent item
             let resolvedLayers = layersWithInjectedData.length > 0
-              ? await resolveCollectionLayers(layersWithInjectedData, isPublished, enhancedItemValues, paginationContext, translations, collectionItem.id, timezone, collectionItem.id)
+              ? await resolveCollectionLayers(layersWithInjectedData, isPublished, enhancedItemValues, paginationContext, translations, collectionItem.id, valueFormat, collectionItem.id)
               : [];
 
             // Resolve collections inside rich text embedded components
-            resolvedLayers = await resolveRichTextCollections(resolvedLayers, components, isPublished, translations);
+            resolvedLayers = await resolveRichTextCollections(resolvedLayers, components, isPublished, translations, undefined, valueFormat);
 
             // Apply translations (components already resolved above)
             if (detectedLocale && translations && Object.keys(translations).length > 0) {
@@ -863,10 +868,10 @@ async function fetchPageByPathInternal(
     const layersWithComponents = resolveComponents(localizedRawLayers, components);
 
     let resolvedLayers = layersWithComponents.length > 0
-      ? await resolveCollectionLayers(layersWithComponents, isPublished, undefined, paginationContext, translations, undefined, timezone)
+      ? await resolveCollectionLayers(layersWithComponents, isPublished, undefined, paginationContext, translations, undefined, valueFormat)
       : [];
 
-    resolvedLayers = await resolveRichTextCollections(resolvedLayers, components, isPublished, translations);
+    resolvedLayers = await resolveRichTextCollections(resolvedLayers, components, isPublished, translations, undefined, valueFormat);
 
     // Apply translations (components already resolved above)
     if (detectedLocale && translations && Object.keys(translations).length > 0) {
@@ -945,7 +950,7 @@ export async function fetchErrorPage(
   options: { throwOnError?: boolean } = {}
 ): Promise<PageData | null> {
   try {
-    const supabase = await getSupabaseAdmin(tenantId);
+    const supabase = await getDbClient(tenantId);
 
     if (!supabase) {
       throw new Error('Supabase not configured');
@@ -1008,12 +1013,13 @@ export async function fetchErrorPage(
 
     // Resolve collection layers server-side (for both draft and published)
     // The isPublished parameter controls which collection items to fetch
+    const valueFormat = { locale: resolveFormatLocale(locale, availableLocales) };
     let resolvedLayers = layersWithComponents.length > 0
-      ? await resolveCollectionLayers(layersWithComponents, isPublished, undefined, undefined, pageTranslations)
+      ? await resolveCollectionLayers(layersWithComponents, isPublished, undefined, undefined, pageTranslations, undefined, valueFormat)
       : [];
 
     // Resolve collections inside rich text embedded components
-    resolvedLayers = await resolveRichTextCollections(resolvedLayers, components, isPublished, pageTranslations);
+    resolvedLayers = await resolveRichTextCollections(resolvedLayers, components, isPublished, pageTranslations, undefined, valueFormat);
 
     // Apply translations (components already resolved above)
     if (pageTranslations) {
@@ -1048,16 +1054,18 @@ export async function fetchErrorPage(
  * @param isPublished - Whether to fetch published or draft version
  * @param paginationContext - Optional pagination context with page numbers from URL
  * @param preloadedComponents - Optional pre-fetched components to avoid redundant queries
+ * @param localeCode - Language the homepage is shown in (the default one when not given)
  */
 export const fetchHomepage = cache(async function fetchHomepage(
   isPublished: boolean,
   paginationContext?: PaginationContext,
   preloadedComponents?: Component[],
   tenantId?: string,
-  translations?: Record<string, Translation>
+  translations?: Record<string, Translation>,
+  localeCode?: string
 ): Promise<Pick<PageData, 'page' | 'pageLayers' | 'components' | 'locale' | 'availableLocales' | 'translations' | 'generatedCss'> | null> {
   try {
-    const supabase = await getSupabaseAdmin(tenantId);
+    const supabase = await getDbClient(tenantId);
 
     if (!supabase) {
       return null;
@@ -1102,14 +1110,15 @@ export const fetchHomepage = cache(async function fetchHomepage(
       : pageLayers?.layers || [];
 
     const layersWithComponents = resolveComponents(localizedRawLayers, components);
+    const valueFormat = { locale: localeCode ?? resolveFormatLocale(null, availableLocales) };
 
     // Resolve collection layers server-side (for both draft and published)
     let resolvedLayers = layersWithComponents.length > 0
-      ? await resolveCollectionLayers(layersWithComponents, isPublished, undefined, paginationContext, translations)
+      ? await resolveCollectionLayers(layersWithComponents, isPublished, undefined, paginationContext, translations, undefined, valueFormat)
       : [];
 
     // Resolve collections inside rich text embedded components
-    resolvedLayers = await resolveRichTextCollections(resolvedLayers, components, isPublished, translations);
+    resolvedLayers = await resolveRichTextCollections(resolvedLayers, components, isPublished, translations, undefined, valueFormat);
 
     // Resolve all AssetVariables to URLs server-side (prevents client-side API calls)
     const resolved = await resolveAllAssets(resolvedLayers, isPublished, components);
@@ -1384,7 +1393,7 @@ async function injectCollectionData(
   isPublished: boolean = true,
   layerDataMap?: Record<string, Record<string, string>>,
   rawItemValues?: Record<string, string>,
-  timezone: string = 'UTC',
+  valueFormat: ValueFormat = DEFAULT_VALUE_FORMAT,
   globalsData?: Record<string, string>,
   globalsMeta?: Record<string, GlobalFieldMeta>
 ): Promise<Layer> {
@@ -1419,7 +1428,7 @@ async function injectCollectionData(
         };
       }
 
-      const resolvedContent = resolveRichTextVariables(content, enhancedValues, layerDataMap, rawItemValues, timezone, globalsMeta);
+      const resolvedContent = resolveRichTextVariables(content, enhancedValues, layerDataMap, rawItemValues, valueFormat, globalsMeta);
       resolvedVars.text = {
         type: 'dynamic_rich_text',
         data: { content: resolvedContent },
@@ -1430,7 +1439,7 @@ async function injectCollectionData(
   else if (textVariable && textVariable.type === 'dynamic_text') {
     const textContent = textVariable.data.content;
     if (textContent.includes('<ycode-inline-variable>')) {
-      const resolved = resolveInlineVariablesWithRelationships(textContent, buildMockCollectionItem(enhancedValues), timezone, rawItemValues);
+      const resolved = resolveInlineVariablesWithRelationships(textContent, buildMockCollectionItem(enhancedValues), valueFormat, rawItemValues);
 
       resolvedVars.text = {
         type: 'dynamic_text',
@@ -1444,7 +1453,7 @@ async function injectCollectionData(
   // field-bound and static-src cases.
   const resolveImageAlt = (alt: DynamicTextVariable | undefined) =>
     resolveImageAltVariable(alt, (content) =>
-      resolveInlineVariablesWithRelationships(content, buildMockCollectionItem(enhancedValues), timezone, rawItemValues));
+      resolveInlineVariablesWithRelationships(content, buildMockCollectionItem(enhancedValues), valueFormat, rawItemValues));
 
   const imageSrc = layer.variables?.image?.src;
   if (imageSrc && isFieldVariable(imageSrc) && imageSrc.data.field_id) {
@@ -1559,7 +1568,7 @@ async function injectCollectionData(
         if (child.variables?.collection?.id) {
           return Promise.resolve(child);
         }
-        return injectCollectionData(child, enhancedValues, fields, isPublished, layerDataMap, rawItemValues, timezone, globalsData, globalsMeta);
+        return injectCollectionData(child, enhancedValues, fields, isPublished, layerDataMap, rawItemValues, valueFormat, globalsData, globalsMeta);
       })
     );
     updates.children = resolvedChildren;
@@ -1578,7 +1587,7 @@ async function injectCollectionData(
 function resolveInlineVariablesWithRelationships(
   text: string,
   collectionItem: CollectionItemWithValues,
-  timezone: string = 'UTC',
+  valueFormat: ValueFormat = DEFAULT_VALUE_FORMAT,
   rawValues?: Record<string, string>
 ): string {
   if (!collectionItem || !collectionItem.values) {
@@ -1604,7 +1613,7 @@ function resolveInlineVariablesWithRelationships(
           // Use raw (unformatted ISO) values for custom format presets,
           // since itemValues are pre-formatted by formatDateFieldsInItemValues
           const rawValue = rawValues?.[fullPath] ?? fieldValue;
-          return formatFieldValue(rawValue, parsed.data.field_type, timezone, parsed.data.format);
+          return formatFieldValue(rawValue, parsed.data.field_type, valueFormat.timezone, parsed.data.format, valueFormat.locale);
         }
         return fieldValue || '';
       }
@@ -1675,7 +1684,7 @@ function resolveRichTextVariables(
   itemValues: Record<string, string>,
   layerDataMap?: Record<string, Record<string, string>>,
   rawItemValues?: Record<string, string>,
-  timezone: string = 'UTC',
+  valueFormat: ValueFormat = DEFAULT_VALUE_FORMAT,
   globalsMeta?: Record<string, GlobalFieldMeta>
 ): any {
   if (!content || typeof content !== 'object') {
@@ -1720,7 +1729,7 @@ function resolveRichTextVariables(
       // Handle rich_text fields - preserve block structure for proper rendering
       if (fieldType === 'rich_text' && isTiptapDoc(value)) {
         const resolvedBlocks = value.content.map((block: any) =>
-          resolveRichTextVariables(block, itemValues, layerDataMap, rawItemValues, timezone, globalsMeta)
+          resolveRichTextVariables(block, itemValues, layerDataMap, rawItemValues, valueFormat, globalsMeta)
         );
         return resolvedBlocks.flat();
       }
@@ -1747,7 +1756,7 @@ function resolveRichTextVariables(
       if (format) {
         const rawValue = rawItemValues?.[fullPath] ?? value;
         textValue = rawValue != null
-          ? formatFieldValue(rawValue, fieldType, timezone, format)
+          ? formatFieldValue(rawValue, fieldType, valueFormat.timezone, format, valueFormat.locale)
           : '';
       } else {
         textValue = value != null ? String(value) : '';
@@ -1766,7 +1775,7 @@ function resolveRichTextVariables(
   if (Array.isArray(content)) {
     // Flatten arrays that may contain nested arrays from rich_text expansion
     return content.flatMap(node => {
-      const resolved = resolveRichTextVariables(node, itemValues, layerDataMap, rawItemValues, timezone, globalsMeta);
+      const resolved = resolveRichTextVariables(node, itemValues, layerDataMap, rawItemValues, valueFormat, globalsMeta);
       return Array.isArray(resolved) ? resolved : [resolved];
     });
   }
@@ -1777,11 +1786,11 @@ function resolveRichTextVariables(
     if (key === 'content' && Array.isArray(content[key])) {
       // Flatten the content array in case of expanded rich_text nodes
       result[key] = content[key].flatMap((node: any) => {
-        const resolved = resolveRichTextVariables(node, itemValues, layerDataMap, rawItemValues, timezone, globalsMeta);
+        const resolved = resolveRichTextVariables(node, itemValues, layerDataMap, rawItemValues, valueFormat, globalsMeta);
         return Array.isArray(resolved) ? resolved : [resolved];
       });
     } else if (typeof content[key] === 'object' && content[key] !== null) {
-      result[key] = resolveRichTextVariables(content[key], itemValues, layerDataMap, rawItemValues, timezone, globalsMeta);
+      result[key] = resolveRichTextVariables(content[key], itemValues, layerDataMap, rawItemValues, valueFormat, globalsMeta);
     } else {
       result[key] = content[key];
     }
@@ -1834,6 +1843,7 @@ async function resolveTiptapComponentCollections(
   isPublished: boolean,
   translations?: Record<string, Translation>,
   ancestorComponentIds?: Set<string>,
+  valueFormat?: Partial<ValueFormat>,
 ): Promise<any> {
   if (!content || typeof content !== 'object') return content;
 
@@ -1841,7 +1851,7 @@ async function resolveTiptapComponentCollections(
     let changed = false;
     const result = await Promise.all(
       content.map(async (node: any) => {
-        const resolved = await resolveTiptapComponentCollections(node, components, isPublished, translations, ancestorComponentIds);
+        const resolved = await resolveTiptapComponentCollections(node, components, isPublished, translations, ancestorComponentIds, valueFormat);
         if (resolved !== node) changed = true;
         return resolved;
       })
@@ -1870,12 +1880,12 @@ async function resolveTiptapComponentCollections(
         const overrides = node.attrs.componentOverrides ?? undefined;
         const withOverrides = applyComponentOverrides(compVariantLayers, overrides, comp.variables);
         const withComponents = resolveComponents(withOverrides, components, comp.variables, overrides);
-        const withCollections = await resolveCollectionLayers(withComponents, isPublished, undefined, undefined, translations);
+        const withCollections = await resolveCollectionLayers(withComponents, isPublished, undefined, undefined, translations, undefined, valueFormat);
 
         // Recursively resolve rich text components inside the resolved layers
         // (handles Component A → rich text → Component B → collection)
         let fullyResolved = await resolveRichTextCollections(
-          withCollections, components, isPublished, translations, childAncestors,
+          withCollections, components, isPublished, translations, childAncestors, valueFormat,
         );
 
         // Translate the embedded component's layers. Component-scope
@@ -1900,7 +1910,7 @@ async function resolveTiptapComponentCollections(
 
   // Recurse into content array
   if (Array.isArray(node.content)) {
-    const resolvedContent = await resolveTiptapComponentCollections(node.content, components, isPublished, translations, ancestorComponentIds);
+    const resolvedContent = await resolveTiptapComponentCollections(node.content, components, isPublished, translations, ancestorComponentIds, valueFormat);
     if (resolvedContent !== node.content) {
       node = { ...node, content: resolvedContent };
       nodeChanged = true;
@@ -1922,6 +1932,7 @@ export async function resolveRichTextCollections(
   isPublished: boolean,
   translations?: Record<string, Translation>,
   ancestorComponentIds?: Set<string>,
+  valueFormat?: Partial<ValueFormat>,
 ): Promise<Layer[]> {
   if (!components.length) return layers;
 
@@ -1932,7 +1943,7 @@ export async function resolveRichTextCollections(
     const textVar = layer.variables?.text;
     if (textVar?.type === 'dynamic_rich_text' && textVar.data?.content) {
       const resolved = await resolveTiptapComponentCollections(
-        textVar.data.content, components, isPublished, translations, ancestorComponentIds,
+        textVar.data.content, components, isPublished, translations, ancestorComponentIds, valueFormat,
       );
       if (resolved !== textVar.data.content) {
         updated = {
@@ -2204,7 +2215,7 @@ async function buildCollectionCache(
   };
   if (collectionIds.size === 0) return empty;
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) return empty;
 
   // Warm direct DB connection in parallel so first-hit value queries don't pay
@@ -2451,7 +2462,9 @@ export async function resolveCollectionLayers(
   paginationContext?: PaginationContext,
   translations?: Record<string, Translation>,
   parentCollectionItemId?: string,
-  timezone?: string,
+  // Timezone and language for dates and numbers; whatever is missing is
+  // fetched once for the tree (the site's timezone, its default language)
+  valueFormatOverrides?: Partial<ValueFormat>,
   // The dynamic page's collection item ID. Distinct from `parentCollectionItemId`
   // (which advances as nested collections recurse) because `self` filters always
   // resolve "current page item" against the outermost page item, never the
@@ -2464,10 +2477,15 @@ export async function resolveCollectionLayers(
   // enclosing collection layer that SSR would otherwise seed here.
   initialLayerDataMap?: Record<string, Record<string, string>>,
 ): Promise<Layer[]> {
-  // Reuse caller-provided timezone, or fetch once for the entire tree
-  if (!timezone) {
-    timezone = (await getSettingByKey('timezone') as string | null) || 'UTC';
-  }
+  // Reuse caller-provided timezone and language, or fetch once for the entire tree
+  const [timezone, locale] = await Promise.all([
+    valueFormatOverrides?.timezone
+      ?? getSettingByKey('timezone').then((value) => (value as string | null) || 'UTC'),
+    valueFormatOverrides && 'locale' in valueFormatOverrides
+      ? valueFormatOverrides.locale
+      : getDefaultLocale(isPublished).then((defaultLocale) => defaultLocale?.code, () => undefined),
+  ]);
+  const valueFormat: ValueFormat = { timezone, locale };
 
   // Fetch site-wide globals once for the whole tree so global-source bindings
   // inside collection loops resolve at build time. Keyed by id (== field_id).
@@ -2640,7 +2658,7 @@ export async function resolveCollectionLayers(
                 // Inject virtual field data into the resolved children
                 const injectedChildren = await Promise.all(
                   resolvedChildren.map(child =>
-                    injectCollectionData(child, virtualValues, undefined, isPublished, updatedLayerDataMap, undefined, timezone, globalsData, globalsMeta)
+                    injectCollectionData(child, virtualValues, undefined, isPublished, updatedLayerDataMap, undefined, valueFormat, globalsData, globalsMeta)
                   )
                 );
 
@@ -2662,7 +2680,7 @@ export async function resolveCollectionLayers(
                   isPublished,
                   updatedLayerDataMap,
                   undefined,
-                  timezone,
+                  valueFormat,
                   globalsData,
                   globalsMeta
                 );
@@ -2930,7 +2948,7 @@ export async function resolveCollectionLayers(
               // Then inject field data into the resolved children
               const injectedChildren = await Promise.all(
                 resolvedChildren.map(child =>
-                  injectCollectionData(child, enhancedValues, collectionFields, isPublished, updatedLayerDataMap, rawEnhancedValues, timezone, globalsData, globalsMeta)
+                  injectCollectionData(child, enhancedValues, collectionFields, isPublished, updatedLayerDataMap, rawEnhancedValues, valueFormat, globalsData, globalsMeta)
                 )
               );
 
@@ -2960,7 +2978,7 @@ export async function resolveCollectionLayers(
                 isPublished,
                 updatedLayerDataMap,
                 rawEnhancedValues,
-                timezone,
+                valueFormat,
                 globalsData,
                 globalsMeta
               );
@@ -3818,13 +3836,15 @@ export async function renderCollectionItemsToHtml(
   // attributes are preserved. Falls back to a generic wrapper otherwise.
   collectionLayer?: Omit<Layer, 'children'>,
 ): Promise<string> {
-  // Fetch collection fields, timezone, and map tokens in parallel
-  const [collectionFields, timezoneRaw] = await Promise.all([
+  // Fetch collection fields, timezone, language and map tokens in parallel
+  const [collectionFields, timezoneRaw, defaultLocale] = await Promise.all([
     getFieldsByCollectionId(collectionId, isPublished, { excludeComputed: true }),
     getSettingByKey('timezone'),
+    locale ? Promise.resolve(null) : getDefaultLocale(isPublished).catch(() => null),
     ensureMapTokens(),
   ]);
   const htmlTimezone = (timezoneRaw as string | null) || 'UTC';
+  const htmlValueFormat: ValueFormat = { timezone: htmlTimezone, locale: (locale ?? defaultLocale)?.code };
   const [globalsData, globalsMeta] = await Promise.all([
     buildGlobalsDataMap(isPublished),
     buildGlobalsMetaDataMap(isPublished),
@@ -3908,7 +3928,7 @@ export async function renderCollectionItemsToHtml(
       // Inject collection data into each layer of the template (text, images, etc.)
       const injectedLayers = await Promise.all(
         clonedTemplate.map((layer: Layer) =>
-          injectCollectionDataForHtml(layer, enhancedValues, collectionFields, isPublished, rawValues, htmlTimezone, globalsData, globalsMeta)
+          injectCollectionDataForHtml(layer, enhancedValues, collectionFields, isPublished, rawValues, htmlValueFormat, globalsData, globalsMeta)
         )
       );
 
@@ -3927,7 +3947,7 @@ export async function renderCollectionItemsToHtml(
         undefined,
         undefined,
         item.id,
-        htmlTimezone,
+        htmlValueFormat,
         pageLinkContext?.pageCollectionItemId,
         { [collectionLayerId]: enhancedValues },
       );
@@ -4047,7 +4067,7 @@ async function injectCollectionDataForHtml(
   fields: CollectionField[],
   isPublished: boolean,
   rawItemValues?: Record<string, string>,
-  timezone: string = 'UTC',
+  valueFormat: ValueFormat = DEFAULT_VALUE_FORMAT,
   globalsData?: Record<string, string>,
   globalsMeta?: Record<string, GlobalFieldMeta>
 ): Promise<Layer> {
@@ -4084,7 +4104,7 @@ async function injectCollectionDataForHtml(
         };
       }
 
-      const resolvedContent = resolveRichTextVariables(content, enhancedValues, undefined, rawItemValues, timezone, globalsMeta);
+      const resolvedContent = resolveRichTextVariables(content, enhancedValues, undefined, rawItemValues, valueFormat, globalsMeta);
       resolvedVars.text = {
         type: 'dynamic_rich_text',
         data: { content: resolvedContent },
@@ -4095,7 +4115,7 @@ async function injectCollectionDataForHtml(
   else if (textVariable && textVariable.type === 'dynamic_text') {
     const textContent = textVariable.data.content;
     if (textContent.includes('<ycode-inline-variable>')) {
-      const resolved = resolveInlineVariables(textContent, buildMockCollectionItem(enhancedValues), timezone, rawItemValues);
+      const resolved = resolveInlineVariables(textContent, buildMockCollectionItem(enhancedValues), valueFormat, rawItemValues);
       resolvedVars.text = {
         type: 'dynamic_text',
         data: { content: resolved },
@@ -4118,7 +4138,7 @@ async function injectCollectionDataForHtml(
   // field-bound and static-src cases.
   const resolveImageAlt = (alt: DynamicTextVariable | undefined) =>
     resolveImageAltVariable(alt, (content) =>
-      resolveInlineVariables(content, buildMockCollectionItem(enhancedValues), timezone, rawItemValues));
+      resolveInlineVariables(content, buildMockCollectionItem(enhancedValues), valueFormat, rawItemValues));
 
   const imageSrc = layer.variables?.image?.src;
   if (imageSrc && isFieldVariable(imageSrc) && imageSrc.data.field_id) {
@@ -4184,7 +4204,7 @@ async function injectCollectionDataForHtml(
   if (layer.children) {
     const resolvedChildren = await Promise.all(
       layer.children.map(child =>
-        injectCollectionDataForHtml(child, enhancedValues, fields, isPublished, rawItemValues, timezone, globalsData, globalsMeta)
+        injectCollectionDataForHtml(child, enhancedValues, fields, isPublished, rawItemValues, valueFormat, globalsData, globalsMeta)
       )
     );
     updates.children = resolvedChildren;
@@ -5022,7 +5042,7 @@ export function layerToHtml(
     const imageAlt = layer.variables?.image?.alt;
     let resolvedAlt = '';
     if (imageAlt && imageAlt.type === 'dynamic_text') {
-      resolvedAlt = resolveInlineVariablesFromData(imageAlt.data.content, effectiveCollectionItemData, pageCollectionItemData, 'UTC', effectiveLayerDataMap);
+      resolvedAlt = resolveInlineVariablesFromData(imageAlt.data.content, effectiveCollectionItemData, pageCollectionItemData, DEFAULT_VALUE_FORMAT, effectiveLayerDataMap);
     }
     attrs.push(`alt="${escapeHtml(resolvedAlt)}"`);
 
@@ -5039,7 +5059,7 @@ export function layerToHtml(
     if (videoSrc && videoSrc.type === 'video' && 'provider' in videoSrc.data && videoSrc.data.provider === 'youtube') {
       const rawVideoId = videoSrc.data.video_id || '';
       // Resolve inline variables in video ID (supports CMS binding)
-      const videoId = resolveInlineVariablesFromData(rawVideoId, effectiveCollectionItemData, pageCollectionItemData, 'UTC', effectiveLayerDataMap);
+      const videoId = resolveInlineVariablesFromData(rawVideoId, effectiveCollectionItemData, pageCollectionItemData, DEFAULT_VALUE_FORMAT, effectiveLayerDataMap);
       const privacyMode = layer.attributes?.youtubePrivacyMode === true;
       const domain = privacyMode ? 'youtube-nocookie.com' : 'youtube.com';
 

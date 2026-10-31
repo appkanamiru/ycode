@@ -1,5 +1,5 @@
 import type { NextRequest } from 'next/server';
-import { getBaseUrl, jsonMetadataResponse, optionsResponse } from '@/lib/oauth/metadata';
+import { getAuthorizationServerUrl, getBaseUrl, jsonMetadataResponse, optionsResponse } from '@/lib/oauth/metadata';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
 
   return jsonMetadataResponse({
     resource: `${baseUrl}/ycode/mcp`,
-    authorization_servers: [baseUrl],
+    authorization_servers: [getAuthorizationServerUrl(request)],
     bearer_methods_supported: ['header'],
     resource_documentation: 'https://github.com/ycode/ycode',
   });

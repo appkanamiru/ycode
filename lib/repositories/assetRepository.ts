@@ -1,4 +1,5 @@
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
+import { getSupabaseStorage } from '@/lib/supabase-storage';
 import { SUPABASE_IN_FILTER_CHUNK_SIZE, SUPABASE_QUERY_LIMIT, SUPABASE_WRITE_BATCH_SIZE } from '@/lib/supabase-constants';
 import { STORAGE_BUCKET, STORAGE_FOLDERS } from '@/lib/asset-constants';
 import { getInlineSvgAssetVersion } from '@/lib/asset-utils';
@@ -41,7 +42,7 @@ export interface GetAssetsOptions {
  * Get assets with pagination and search support (drafts only)
  */
 export async function getAssetsPaginated(options: GetAssetsOptions = {}): Promise<PaginatedAssetsResult> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -124,7 +125,7 @@ export async function getAssetsPaginated(options: GetAssetsOptions = {}): Promis
  * @deprecated Use getAssetsPaginated for better performance with large datasets
  */
 export async function getAllAssets(folderId?: string | null): Promise<Asset[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -179,7 +180,7 @@ export async function getAllAssets(folderId?: string | null): Promise<Asset[]> {
  * @param isPublished If true, get published version; if false, get draft version (default: false)
  */
 export async function getAssetById(id: string, isPublished: boolean = false, tenantId?: string): Promise<Asset | null> {
-  const client = await getSupabaseAdmin(tenantId);
+  const client = await getDbClient(tenantId);
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -219,7 +220,7 @@ export type ProxyAsset = Pick<Asset, 'id' | 'filename' | 'storage_path' | 'mime_
  * whose bytes produce that version wins; otherwise the published row is preferred.
  */
 export async function getAssetForProxy(id: string, version?: string | null): Promise<ProxyAsset | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -250,7 +251,7 @@ export async function getAssetForProxy(id: string, version?: string | null): Pro
  * @param isPublished If true, get published versions; if false, get draft versions (default: false)
  */
 export async function getAssetsByIds(ids: string[], isPublished: boolean = false, tenantId?: string): Promise<Record<string, Asset>> {
-  const client = await getSupabaseAdmin(tenantId);
+  const client = await getDbClient(tenantId);
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -303,7 +304,7 @@ export async function getAssetsByIds(ids: string[], isPublished: boolean = false
 export async function findAssetsByFilenames(filenames: string[]): Promise<Record<string, Pick<Asset, 'id' | 'public_url'>>> {
   if (filenames.length === 0) return {};
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -334,7 +335,7 @@ export async function findAssetsByFilenames(filenames: string[]): Promise<Record
  * Create asset record (always creates as draft)
  */
 export async function createAsset(assetData: CreateAssetData): Promise<Asset> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -382,7 +383,7 @@ export interface UpdateAssetData {
 }
 
 export async function updateAsset(id: string, assetData: UpdateAssetData): Promise<Asset> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -439,7 +440,7 @@ export async function updateAsset(id: string, assetData: UpdateAssetData): Promi
  * If the asset was never published, also deletes the physical file
  */
 export async function deleteAsset(id: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -457,7 +458,7 @@ export async function deleteAsset(id: string): Promise<void> {
 
   // If never published, delete the physical file immediately
   if (!publishedAsset && draftAsset.storage_path) {
-    const { error: storageError } = await client.storage
+    const { error: storageError } = await (await getSupabaseStorage())
       .from(STORAGE_BUCKET)
       .remove([draftAsset.storage_path]);
 
@@ -485,7 +486,7 @@ export async function deleteAsset(id: string): Promise<void> {
  * If assets were never published, also deletes their physical files
  */
 export async function bulkDeleteAssets(ids: string[]): Promise<{ success: string[]; failed: string[] }> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -542,7 +543,7 @@ export async function bulkDeleteAssets(ids: string[]): Promise<{ success: string
   if (storagePaths.length > 0) {
     for (let i = 0; i < storagePaths.length; i += SUPABASE_WRITE_BATCH_SIZE) {
       const batch = storagePaths.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
-      const { error: storageError } = await client.storage
+      const { error: storageError } = await (await getSupabaseStorage())
         .from(STORAGE_BUCKET)
         .remove(batch);
 
@@ -579,7 +580,7 @@ export async function bulkUpdateAssets(
   ids: string[],
   updates: UpdateAssetData
 ): Promise<{ success: string[]; failed: string[] }> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -669,7 +670,7 @@ function sanitizeFilename(filename: string): string {
  * Upload file to Supabase Storage
  */
 export async function uploadFile(file: File): Promise<{ path: string; url: string }> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -679,7 +680,7 @@ export async function uploadFile(file: File): Promise<{ path: string; url: strin
   const sanitizedName = sanitizeFilename(file.name);
   const storagePath = `${STORAGE_FOLDERS.WEBSITE}/${Date.now()}-${sanitizedName}`;
 
-  const { data, error } = await client.storage
+  const { data, error } = await (await getSupabaseStorage())
     .from(STORAGE_BUCKET)
     .upload(storagePath, file, {
       cacheControl: '3600',
@@ -690,7 +691,7 @@ export async function uploadFile(file: File): Promise<{ path: string; url: strin
     throw new Error(`Failed to upload file: ${error.message}`);
   }
 
-  const { data: urlData } = client.storage
+  const { data: urlData } = (await getSupabaseStorage())
     .from(STORAGE_BUCKET)
     .getPublicUrl(data.path);
 
@@ -710,7 +711,7 @@ export async function uploadFile(file: File): Promise<{ path: string; url: strin
  * Uses pagination to handle more than 1000 assets (Supabase default limit).
  */
 export async function getUnpublishedAssets(): Promise<Asset[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -781,7 +782,7 @@ export async function getUnpublishedAssets(): Promise<Asset[]> {
  * Count unpublished assets from id/hash only — not file payloads or SVG content.
  */
 export async function getUnpublishedAssetsCount(): Promise<number> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -847,7 +848,7 @@ export async function getUnpublishedAssetsCount(): Promise<number> {
  * Get soft-deleted draft assets that need their published versions and files removed
  */
 export async function getDeletedDraftAssets(): Promise<Asset[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -887,7 +888,7 @@ export async function publishAssets(assetIds: string[]): Promise<{ count: number
     return { count: 0 };
   }
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -986,7 +987,7 @@ export async function publishAssets(assetIds: string[]): Promise<{ count: number
  * 3. The soft-deleted draft record
  */
 export async function hardDeleteSoftDeletedAssets(): Promise<{ count: number }> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');

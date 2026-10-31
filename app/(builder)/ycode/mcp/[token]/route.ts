@@ -7,6 +7,7 @@ import {
   addCorsHeaders,
   unauthorizedJson,
 } from '@/lib/mcp/handler';
+import { getMcpSiteOptions } from '@/lib/platform/mcp-site';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -28,7 +29,7 @@ export async function POST(
   if (!(await authenticateToken(token, request))) {
     return unauthorizedJson('Invalid MCP token');
   }
-  return handleMcpPost(request);
+  return handleMcpPost(request, await getMcpSiteOptions());
 }
 
 export async function GET(

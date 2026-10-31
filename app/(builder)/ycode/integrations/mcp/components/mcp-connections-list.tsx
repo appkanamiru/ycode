@@ -34,7 +34,7 @@ export default function McpConnectionsList({ connections, onRevoke }: McpConnect
   if (connections.length === 0) {
     return (
       <div className="py-10 text-center text-muted-foreground text-sm border border-dashed rounded-lg">
-        No connections yet. Connect an AI tool using the URL above and it will appear here.
+        No connections yet. Connect an AI tool using a URL above and it will appear here.
       </div>
     );
   }
@@ -54,6 +54,11 @@ export default function McpConnectionsList({ connections, onRevoke }: McpConnect
                 <span className={`text-xs px-1.5 py-0.5 rounded ${expired ? 'text-muted-foreground bg-secondary' : 'text-emerald-500 bg-emerald-500/10'}`}>
                   {statusLabel(token)}
                 </span>
+                {token.scope && (
+                  <span className="text-xs px-1.5 py-0.5 rounded text-muted-foreground bg-secondary">
+                    {token.scope === 'account' ? 'All sites' : 'This site'}
+                  </span>
+                )}
               </div>
               <div className="text-xs text-muted-foreground">
                 Connected {formatDate(token.created_at, 'MMM D, YYYY')} · {lastUsedLabel(token)}

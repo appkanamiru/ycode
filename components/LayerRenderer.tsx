@@ -58,6 +58,7 @@ import AnimationInitializer from '@/components/AnimationInitializer';
 import { transformLayerIdsForInstance, resolveVariableLinks } from '@/lib/resolve-components';
 
 import type { DesignColorVariable, FieldVariable } from '@/types';
+import { resolveFormatLocale, type ValueFormat } from '@/lib/value-format';
 
 /**
  * Build a map of layerId -> anchor value (the element's HTML id) for O(1) anchor resolution
@@ -243,6 +244,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
                 itemIds={layer._paginationMeta!.itemIds}
                 layerTemplate={layer._paginationMeta!.layerTemplate}
                 collectionLayer={layer._filterConfig?.collectionLayer || layer._paginationMeta!.collectionLayer}
+                localeCode={currentLocale?.code}
               >
                 {content}
               </LoadMoreCollection>
@@ -280,6 +282,7 @@ const LayerRenderer: React.FC<LayerRendererProps> = ({
               collectionLayerTag={layer._filterConfig!.collectionLayerTag}
               isPublished={layer._filterConfig!.isPublished}
               collectionLayer={layer._filterConfig!.collectionLayer}
+              localeCode={currentLocale?.code}
             >
               {content}
             </FilterableCollection>
@@ -581,6 +584,11 @@ const LayerItemImpl: React.FC<{
   const settingsByKey = useSettingsStore((state) => state.settingsByKey);
   const colorVariables = useColorVariablesStore((state) => state.colorVariables);
   const timezone = (settingsByKey.timezone as string | null) ?? 'UTC';
+  // Dates and numbers in the canvas's selected language, as on the published page
+  const valueFormat = useMemo<ValueFormat>(
+    () => ({ timezone, locale: resolveFormatLocale(currentLocale, availableLocales) }),
+    [timezone, currentLocale, availableLocales],
+  );
 
   // Create asset resolver that checks pre-resolved assets first (SSR), then falls back to store
   const getAsset = useCallback((id: string) => {
@@ -1171,7 +1179,7 @@ const LayerItemImpl: React.FC<{
           const variable = isSimpleTextLayer
             ? { ...textVariable, data: { ...textVariable.data, content: flattenTiptapParagraphs(textVariable.data.content) } }
             : textVariable;
-          return renderRichText(variable as any, collectionLayerData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, isEditMode, linkContext, timezone, effectiveLayerDataMap, allComponents, renderComponentBlock, effectiveAncestorIds, isSimpleTextLayer, globalsMeta);
+          return renderRichText(variable as any, collectionLayerData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, isEditMode, linkContext, valueFormat, effectiveLayerDataMap, allComponents, renderComponentBlock, effectiveAncestorIds, isSimpleTextLayer, globalsMeta);
         }
         if (textVariable.type === 'dynamic_text') {
           return (textVariable as any).data.content;
@@ -1190,7 +1198,7 @@ const LayerItemImpl: React.FC<{
           const variable = isSimpleTextLayer
             ? { ...richTextValue, data: { ...richTextValue.data, content: flattenTiptapParagraphs(richTextValue.data.content) } }
             : richTextValue;
-          return renderRichText(variable as any, collectionLayerData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, isEditMode, linkContext, timezone, effectiveLayerDataMap, allComponents, renderComponentBlock, effectiveAncestorIds, isSimpleTextLayer, globalsMeta);
+          return renderRichText(variable as any, collectionLayerData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, isEditMode, linkContext, valueFormat, effectiveLayerDataMap, allComponents, renderComponentBlock, effectiveAncestorIds, isSimpleTextLayer, globalsMeta);
         }
         if ('type' in valueToRender && valueToRender.type === 'dynamic_text') {
           return (valueToRender as any).data.content;
@@ -1207,7 +1215,7 @@ const LayerItemImpl: React.FC<{
       const variable = isSimpleTextLayer
         ? { ...textVariable, data: { ...textVariable.data, content: flattenTiptapParagraphs(textVariable.data.content) } }
         : textVariable;
-      return renderRichText(variable as any, collectionLayerData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, isEditMode, linkContext, timezone, effectiveLayerDataMap, allComponents, renderComponentBlock, effectiveAncestorIds, isSimpleTextLayer, globalsMeta);
+      return renderRichText(variable as any, collectionLayerData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, isEditMode, linkContext, valueFormat, effectiveLayerDataMap, allComponents, renderComponentBlock, effectiveAncestorIds, isSimpleTextLayer, globalsMeta);
     }
 
     // Check for inline variables in DynamicTextVariable format (legacy)
@@ -1215,7 +1223,7 @@ const LayerItemImpl: React.FC<{
       const content = textVariable.data.content;
       if (typeof content === 'string') {
         if (content.includes('<ycode-inline-variable>')) {
-          return resolveInlineVariablesFromData(content, collectionLayerData, pageCollectionItemData ?? undefined, timezone, effectiveLayerDataMap);
+          return resolveInlineVariablesFromData(content, collectionLayerData, pageCollectionItemData ?? undefined, valueFormat, effectiveLayerDataMap);
         }
         return content;
       }
@@ -1280,7 +1288,7 @@ const LayerItemImpl: React.FC<{
     ? (extractPlainTextFromTiptap(rawImageAltContent) || '')
     : String(rawImageAltContent || '');
   const originalImageAlt = rawImageAlt.includes('<ycode-inline-variable>')
-    ? resolveInlineVariablesFromData(rawImageAlt, collectionLayerData, pageCollectionItemData ?? undefined, timezone, effectiveLayerDataMap)
+    ? resolveInlineVariablesFromData(rawImageAlt, collectionLayerData, pageCollectionItemData ?? undefined, valueFormat, effectiveLayerDataMap)
     : rawImageAlt;
   const translatedImageAlt = getTranslatedText(
     originalImageAlt,
@@ -3029,7 +3037,7 @@ const LayerItemImpl: React.FC<{
         if (videoSrc.type === 'video' && 'provider' in videoSrc.data && videoSrc.data.provider === 'youtube') {
           const rawVideoId = videoSrc.data.video_id || '';
           // Resolve inline variables in video ID (supports CMS binding)
-          const videoId = resolveInlineVariablesFromData(rawVideoId, collectionLayerData, pageCollectionItemData, timezone, effectiveLayerDataMap);
+          const videoId = resolveInlineVariablesFromData(rawVideoId, collectionLayerData, pageCollectionItemData, valueFormat, effectiveLayerDataMap);
           // Use normalized attributes for consistency (already handles string/boolean conversion)
           const privacyMode = normalizedAttributes?.youtubePrivacyMode === true;
           const domain = privacyMode ? 'youtube-nocookie.com' : 'youtube.com';

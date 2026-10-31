@@ -4,7 +4,7 @@
  * Data access layer for application settings stored in the database
  */
 
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import type { Setting } from '@/types';
 
 // Postgres "undefined_table" — the settings table is briefly absent right after
@@ -23,7 +23,7 @@ function isMissingTableError(error: { code?: string } | null): boolean {
  * @returns Promise resolving to all settings
  */
 export async function getAllSettings(): Promise<Setting[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -51,7 +51,7 @@ export async function getAllSettings(): Promise<Setting[]> {
  * @returns Promise resolving to the setting value or null if not found
  */
 export async function getSettingByKey(key: string, tenantId?: string): Promise<any | null> {
-  const client = await getSupabaseAdmin(tenantId);
+  const client = await getDbClient(tenantId);
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -84,7 +84,7 @@ export async function getSettingsByKeys(keys: string[]): Promise<Record<string, 
     return {};
   }
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -117,7 +117,7 @@ export async function getSettingsByKeys(keys: string[]): Promise<Record<string, 
  * @returns Promise resolving to the created/updated setting
  */
 export async function setSetting(key: string, value: any): Promise<Setting> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }
@@ -154,7 +154,7 @@ export async function setSettings(settings: Record<string, any>): Promise<number
     return 0;
   }
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) {
     throw new Error('Failed to initialize Supabase client');
   }

@@ -2,7 +2,9 @@ import Link from 'next/link';
 import { fetchCachedErrorPage } from '@/lib/published-page-cache';
 import { fetchGlobalPageSettings } from '@/lib/generate-page-metadata';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
-import { tenantStore } from '@/lib/supabase-server';
+import { getTenantIdFromHeaders } from '@/lib/supabase-server';
+import { isMultiTenant } from '@/lib/database/tenancy';
+import { shouldShowSiteBadge } from '@/lib/site-badge';
 import PageRenderer from '@/components/PageRenderer';
 import YcodeBadge from '@/components/YcodeBadge';
 
@@ -12,9 +14,13 @@ import YcodeBadge from '@/components/YcodeBadge';
  * 404 status, which avoids soft-404 SEO penalties from search engines.
  */
 export default async function NotFound() {
-  const tenantId = tenantStore.getStore();
+  const tenantId = (await getTenantIdFromHeaders()) ?? undefined;
 
-  const errorPageData = await fetchCachedErrorPage(404, tenantId).catch(() => null);
+  // Multi-tenant without a site (e.g. the editor's own 404s): there is no site
+  // 404 page to show, and a tenant-less cache entry must never be used
+  const errorPageData = isMultiTenant() && !tenantId
+    ? null
+    : await fetchCachedErrorPage(404, tenantId).catch(() => null);
 
   if (errorPageData) {
     const globalSettings = await fetchGlobalPageSettings().catch(() => null);
@@ -39,8 +45,7 @@ export default async function NotFound() {
 
   let showBadge = true;
   try {
-    const setting = await getSettingByKey('ycode_badge');
-    showBadge = setting ?? true;
+    showBadge = await shouldShowSiteBadge(await getSettingByKey('ycode_badge'));
   } catch {
     // Supabase not configured
   }

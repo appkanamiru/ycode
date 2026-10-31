@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { duplicatePage } from '@/lib/repositories/pageRepository';
 import { noCache } from '@/lib/api-response';
+import { reportPageEvent } from '@/lib/services/siteEvents';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -19,6 +20,7 @@ export async function POST(
     const { id } = await params;
 
     const newPage = await duplicatePage(id);
+    if (newPage) void reportPageEvent('created', newPage);
 
     return noCache(
       { data: newPage },

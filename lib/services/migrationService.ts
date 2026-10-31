@@ -1,5 +1,10 @@
 import { getKnexClient, closeKnexClient, testKnexConnection } from '../knex-client';
 import { migrations } from '../migrations-loader';
+import { TENANT_SETTING } from '../database/pg-client/client';
+import { ensurePostgresCompat } from '../database/postgres-compat';
+import { applyTenancy, isMultiTenant, TEMPLATE_TENANT_ID } from '../database/tenancy';
+import { applySiteDefaults } from '../platform/site-defaults';
+import { migratePlatform } from '../platform/auth';
 
 /**
  * Migration Service
@@ -80,6 +85,11 @@ export async function runMigrations(): Promise<MigrationResult> {
     }
 
     const knex = await getKnexClient();
+
+    // Plain Postgres: stand-ins for the Supabase objects migrations rely on
+    if (process.env.YCODE_DB_DRIVER === 'postgres') {
+      await ensurePostgresCompat(knex);
+    }
     const completed = await getCompletedMigrations(knex);
     const batch = await getNextBatch(knex);
     const executed: string[] = [];
@@ -91,6 +101,10 @@ export async function runMigrations(): Promise<MigrationResult> {
         try {
           // Run migration in a transaction
           await knex.transaction(async (trx: any) => {
+            // Rows seeded by migrations belong to the template tenant
+            if (isMultiTenant()) {
+              await trx.raw('select set_config(?, ?, true)', [TENANT_SETTING, TEMPLATE_TENANT_ID]);
+            }
             await migration.up(trx);
 
             // Record migration
@@ -113,6 +127,17 @@ export async function runMigrations(): Promise<MigrationResult> {
           };
         }
       }
+    }
+
+    // Scope tables and unique indexes added by this batch to tenants
+    if (isMultiTenant()) {
+      await applyTenancy(knex);
+      await applySiteDefaults(knex);
+    }
+
+    // Accounts, organizations (tenants) and domains
+    if (process.env.YCODE_DB_DRIVER === 'postgres') {
+      await migratePlatform();
     }
 
     // Close connection

@@ -7,9 +7,10 @@ import { SETTINGS_NAV_ITEMS } from '@/lib/settings-nav-items';
 
 interface SettingsContentProps {
   children: React.ReactNode;
+  multiTenant?: boolean;
 }
 
-export default function SettingsContent({ children }: SettingsContentProps) {
+export default function SettingsContent({ children, multiTenant = false }: SettingsContentProps) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -23,7 +24,7 @@ export default function SettingsContent({ children }: SettingsContentProps) {
 
         <div className="flex-1 overflow-y-auto">
           <div className="space-y-0">
-            {SETTINGS_NAV_ITEMS.map((item) => {
+            {SETTINGS_NAV_ITEMS.filter((item) => !(multiTenant && item.singleSiteOnly)).map((item) => {
               const isActive = pathname === item.path;
 
               return (

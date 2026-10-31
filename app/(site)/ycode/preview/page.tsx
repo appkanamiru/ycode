@@ -7,6 +7,7 @@ import { generateColorVariablesCss } from '@/lib/repositories/colorVariableRepos
 import { generatePageMetadata } from '@/lib/generate-page-metadata';
 import { parseAuthCookie, getPasswordProtection, fetchFoldersForAuth } from '@/lib/page-auth';
 import type { Metadata } from 'next';
+import { getSiteGenerator } from '@/lib/site-generator';
 
 async function fetchPreviewDraftCss() {
   const settings = await getSettingsByKeys(['draft_css']);
@@ -118,8 +119,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
   if (!data) {
     return {
-      title: 'Preview - Ycode',
-      description: 'Preview - Built with Ycode',
+      title: `Preview - ${getSiteGenerator().name}`,
+      description: `Preview - Built with ${getSiteGenerator().name}`,
     };
   }
 

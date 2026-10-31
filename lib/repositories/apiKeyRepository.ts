@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { createHash, randomBytes } from 'crypto';
 
 /**
@@ -40,7 +40,7 @@ function generateApiKey(): string {
  * Get all API keys (without hashes)
  */
 export async function getAllApiKeys(): Promise<ApiKey[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -63,7 +63,7 @@ export async function getAllApiKeys(): Promise<ApiKey[]> {
  * Returns the key info including the plain key (shown only once)
  */
 export async function createApiKey(name: string): Promise<ApiKeyWithPlainKey> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -100,7 +100,7 @@ export async function createApiKey(name: string): Promise<ApiKeyWithPlainKey> {
  * Delete an API key
  */
 export async function deleteApiKey(id: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -122,7 +122,7 @@ export async function deleteApiKey(id: string): Promise<void> {
  * Also updates last_used_at timestamp
  */
 export async function validateApiKey(apiKey: string): Promise<ApiKey | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -160,7 +160,7 @@ export async function validateApiKey(apiKey: string): Promise<ApiKey | null> {
  * Get an API key by ID (without hash)
  */
 export async function getApiKeyById(id: string): Promise<ApiKey | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');

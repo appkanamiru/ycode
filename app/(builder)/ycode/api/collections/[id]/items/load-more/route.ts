@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { getItemsByCollectionId } from '@/lib/repositories/collectionItemRepository';
 import { getValuesByItemIds } from '@/lib/repositories/collectionItemValueRepository';
 import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
@@ -37,7 +37,7 @@ async function getAllItemIdsForCollection(
   collectionId: string,
   isPublished: boolean,
 ): Promise<string[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) throw new Error('Supabase client not configured');
 
   // Page past Supabase's 1000-row default cap so collections with more items
@@ -66,7 +66,7 @@ async function getFieldValuesForItems(
   itemIds: string[],
 ): Promise<Map<string, string>> {
   if (itemIds.length === 0) return new Map();
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) throw new Error('Supabase client not configured');
 
   const rows = await chunkedQuery<{ item_id: string; value: string | null }>(

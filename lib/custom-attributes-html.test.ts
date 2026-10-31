@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { applyCustomAttributesToHtml } from './layer-utils';
+import { applyCustomAttributes, applyCustomAttributesToHtml } from './layer-utils';
 
 test('appends custom attributes with escaped values', () => {
   const { attrs } = applyCustomAttributesToHtml(['data-layer-id="box"'], { 'data-test': '1', 'aria-label': 'Box "one"' });
@@ -23,6 +23,23 @@ test('returns a custom style for merging instead of a second style attribute', (
 
   assert.deepEqual(attrs, []);
   assert.deepEqual(styles, { pointerEvents: 'none', '--tint': 'red' });
+});
+
+test('adds a custom class to the layer classes instead of replacing them', () => {
+  const { attrs } = applyCustomAttributesToHtml(['class="p-4 border-b"', 'id="a"'], { class: 'article-body "x"' });
+
+  assert.deepEqual(attrs, ['id="a"', 'class="p-4 border-b article-body &quot;x&quot;"']);
+});
+
+test('sets a custom class on a layer without classes', () => {
+  assert.deepEqual(applyCustomAttributesToHtml([], { CLASS: 'prose' }).attrs, ['class="prose"']);
+});
+
+test('adds a custom class to the React className', () => {
+  const props: Record<string, unknown> = { className: 'p-4 border-b' };
+  applyCustomAttributes(props, { class: 'article-body', 'data-x': '1' });
+
+  assert.deepEqual(props, { className: 'p-4 border-b article-body', 'data-x': '1' });
 });
 
 test('skips attribute names that would break the markup', () => {

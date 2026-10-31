@@ -5,6 +5,12 @@
  */
 
 import { applyBackgroundImageDesign } from '@/lib/mcp/utils';
+import {
+  getDateFormatPreview,
+  getFormatSectionsForFieldType,
+  getNumberFormatPreview,
+  isFormatValidForFieldType,
+} from '@/lib/variable-format-utils';
 import type { CollectionField, CollectionFieldType, Layer } from '@/types';
 
 /** Layer types whose text content can be bound to a CMS field. */
@@ -20,6 +26,27 @@ export interface FieldData {
   source: BindingSource;
   collection_layer_id?: string;
   format?: string;
+}
+
+/** Describes the `format` parameter of the field-binding tools */
+export const FORMAT_DESCRIPTION = 'Format preset id for date, date_only and number fields, e.g. "date-long", "date-short", '
+  + '"datetime-short", "number-decimal". Not a pattern like "d. M. yyyy"; an unknown id returns the valid ones.';
+
+/**
+ * Why `format` can't be applied to `field`, listing the presets it takes with
+ * their output in `localeCode` (the site's language); null when the format is
+ * valid or absent.
+ */
+export function getFieldFormatError(field: CollectionField, format: string | undefined, localeCode?: string): string | null {
+  if (!format || isFormatValidForFieldType(format, field.type)) return null;
+  const presets = getFormatSectionsForFieldType(field.type).flatMap((section) => section.presets);
+  if (presets.length === 0) {
+    return `Field "${field.name}" (${field.type}) takes no format; only date, date_only and number fields do.`;
+  }
+  const list = presets
+    .map((preset) => `${preset.id} → ${'sample' in preset ? getNumberFormatPreview(preset, localeCode) : getDateFormatPreview(preset, localeCode)}`)
+    .join(', ');
+  return `Unknown format "${format}" for ${field.type} field "${field.name}". Use a preset id (example output on this site): ${list}.`;
 }
 
 /** A field variable's data payload — binds a layer's content to a CMS field. */

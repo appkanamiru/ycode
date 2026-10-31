@@ -7,6 +7,7 @@
 
 import type { CollectionFieldType } from '@/types';
 import { isDateFieldType, isDateOnlyString } from '@/lib/collection-field-utils';
+import { toIntlLocale } from '@/lib/value-format';
 
 // ─── Date Format Presets ────────────────────────────────────────────
 
@@ -396,12 +397,15 @@ export function buildFieldVariableData(
 
 /**
  * Format a date value using a preset ID
- * Falls back to the default display format if preset is not found
+ * Falls back to the default display format if preset is not found.
+ * Presets with their own locale keep their fixed pattern; the others are
+ * written in `locale` (English when not given).
  */
 export function formatDateWithPreset(
   value: string | Date,
   presetId: string | undefined,
-  timezone: string = 'UTC'
+  timezone: string = 'UTC',
+  locale?: string
 ): string {
   const dateObj = typeof value === 'string' ? new Date(value) : value;
   if (isNaN(dateObj.getTime())) return '';
@@ -413,7 +417,7 @@ export function formatDateWithPreset(
 
   const preset = presetId ? datePresetMap.get(presetId) : datePresetMap.get('date-long');
   if (!preset) {
-    return new Intl.DateTimeFormat('en-US', {
+    return new Intl.DateTimeFormat(toIntlLocale(locale), {
       timeZone: effectiveTimezone,
       month: 'long',
       day: 'numeric',
@@ -422,7 +426,7 @@ export function formatDateWithPreset(
   }
 
   try {
-    const formatter = new Intl.DateTimeFormat(preset.locale || 'en-US', {
+    const formatter = new Intl.DateTimeFormat(preset.locale || toIntlLocale(locale), {
       timeZone: effectiveTimezone,
       ...preset.options,
     });
@@ -436,18 +440,20 @@ export function formatDateWithPreset(
 }
 
 /**
- * Format a number value using a preset ID
+ * Format a number value using a preset ID, in `locale` unless the preset has
+ * its own (English when not given).
  * Falls back to plain string conversion if preset is not found
  */
 export function formatNumberWithPreset(
   value: number,
-  presetId: string | undefined
+  presetId: string | undefined,
+  locale?: string
 ): string {
   const preset = presetId ? numberPresetMap.get(presetId) : undefined;
   if (!preset) return String(value);
 
   try {
-    return new Intl.NumberFormat(preset.locale || 'en-US', preset.options).format(value);
+    return new Intl.NumberFormat(preset.locale || toIntlLocale(locale), preset.options).format(value);
   } catch {
     return String(value);
   }
@@ -457,10 +463,10 @@ export function formatNumberWithPreset(
 // Tue Apr 7 2026 09:08 — uses single-digit components to show zero-padding differences
 const PREVIEW_DATE = new Date(2026, 3, 7, 9, 8);
 
-/** Generate a preview label for a date format preset */
-export function getDateFormatPreview(preset: DateFormatPreset): string {
+/** Generate a preview label for a date format preset, in `locale` unless the preset has its own */
+export function getDateFormatPreview(preset: DateFormatPreset, locale?: string): string {
   try {
-    const formatter = new Intl.DateTimeFormat(preset.locale || 'en-US', {
+    const formatter = new Intl.DateTimeFormat(preset.locale || toIntlLocale(locale), {
       ...preset.options,
     });
     const result = preset.extractPart
@@ -475,9 +481,9 @@ export function getDateFormatPreview(preset: DateFormatPreset): string {
 /**
  * Generate a live preview label for a number format preset
  */
-export function getNumberFormatPreview(preset: NumberFormatPreset): string {
+export function getNumberFormatPreview(preset: NumberFormatPreset, locale?: string): string {
   try {
-    return new Intl.NumberFormat(preset.locale || 'en-US', preset.options).format(preset.sample);
+    return new Intl.NumberFormat(preset.locale || toIntlLocale(locale), preset.options).format(preset.sample);
   } catch {
     return preset.label;
   }

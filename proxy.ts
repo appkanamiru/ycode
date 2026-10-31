@@ -3,6 +3,9 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { applySecurityHeaders } from '@/lib/security-headers-server';
 import { prefetchYcodePublishedAt } from '@/lib/ycode-html-comment';
+import { isMultiTenant } from '@/lib/database/tenancy';
+import { isPlatformAuth, TENANT_HEADER } from '@/lib/platform/config';
+import { resolveMcpTenant, resolvePlatformRequest } from '@/lib/platform/proxy';
 
 /**
  * Public API routes that skip authentication.
@@ -12,6 +15,7 @@ const PUBLIC_API_PREFIXES = [
   '/ycode/api/supabase/', // Supabase config — needed for browser client init
   '/ycode/api/auth/',     // Auth callbacks and session checks
   '/ycode/api/v1/',       // Public API — has own API key auth
+  '/ycode/api/platform/auth/', // Platform auth (sign in/up) — handles its own sessions
 ];
 
 /**
@@ -20,10 +24,37 @@ const PUBLIC_API_PREFIXES = [
  */
 const PUBLIC_COLLECTION_ITEM_SUFFIXES = ['/items/filter', '/items/load-more'];
 
+/**
+ * Well-known endpoints that exist (app/.well-known, app/(site)/.well-known).
+ * Other /.well-known/ paths are a plain 404: they would otherwise reach the
+ * page routes, which can't render them.
+ */
+const WELL_KNOWN_ROUTES = [
+  '/.well-known/oauth-authorization-server',
+  '/.well-known/oauth-protected-resource',
+  '/.well-known/security.txt',
+];
+
+function isKnownWellKnownPath(pathname: string): boolean {
+  return WELL_KNOWN_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+}
+
+/** Per-site files at the root: generated from the site's settings */
+const SITE_SEO_FILES = ['/robots.txt', '/sitemap.xml', '/llms.txt', '/favicon.ico'];
+
+/**
+ * Static files in public/: at the root (canvas and slider styles, default
+ * icons; not the per-site favicon.ico) and under /ycode (not API, storage
+ * or builder routes)
+ */
+const PUBLIC_FILE = /^\/(?:(?!favicon\.ico$)[\w\-.]+|ycode\/(?!api\/|storage\/)[\w\-/]+)\.(webp|png|jpe?g|gif|svg|avif|ico|woff2?|css)$/i;
+
 const PUBLIC_API_EXACT = [
   '/ycode/api/revalidate', // Cache revalidation — has own secret token auth
   '/ycode/api/oauth/register', // RFC 7591 Dynamic Client Registration — anonymous
   '/ycode/api/oauth/token',    // OAuth token exchange — auth is via PKCE/refresh
+  '/ycode/api/realtime/publish', // Realtime actions — auth is via the signed connection token
+  '/ycode/api/platform/tls-check', // Asked by the TLS terminator before issuing certificates
 ];
 
 /**
@@ -57,9 +88,20 @@ function getSupabaseEnvConfig(): { url: string; anonKey: string } | null {
   };
 }
 
+/**
+ * Request headers for the app: never trust a tenant header from the client,
+ * only the one resolved here.
+ */
+function withTenantHeader(headers: Headers, tenantId: string | null): Headers {
+  const requestHeaders = new Headers(headers);
+  requestHeaders.delete(TENANT_HEADER);
+  if (tenantId) requestHeaders.set(TENANT_HEADER, tenantId);
+  return requestHeaders;
+}
+
 /** Attach x-pathname on the request (readable via headers()) and the response. */
-function withPathname(response: NextResponse, request: NextRequest, pathname: string): NextResponse {
-  const requestHeaders = new Headers(request.headers);
+function withPathname(response: NextResponse, request: NextRequest, pathname: string, tenantId: string | null = null): NextResponse {
+  const requestHeaders = withTenantHeader(request.headers, tenantId);
   requestHeaders.set('x-pathname', pathname);
   const next = NextResponse.next({
     request: { headers: requestHeaders },
@@ -151,6 +193,11 @@ async function verifyApiAuth(request: NextRequest): Promise<NextResponse | null>
   return authResponse;
 }
 
+/** The published-at stamp is cached process-wide, which only fits a single site. */
+async function prefetchSiteStamp(): Promise<void> {
+  if (!isMultiTenant()) await prefetchYcodePublishedAt();
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -159,7 +206,8 @@ export async function proxy(request: NextRequest) {
   //   - `/ycode/mcp/<token>`: legacy URL-token endpoint (Cursor, Windsurf, etc.)
   //   - `/ycode/mcp`: OAuth Bearer-token endpoint (Claude.ai web, ChatGPT)
   if (pathname === '/ycode/mcp' || pathname.startsWith('/ycode/mcp/')) {
-    return withPathname(NextResponse.next(), request, pathname);
+    const tenantId = isPlatformAuth() ? await resolveMcpTenant(request) : null;
+    return withPathname(NextResponse.next(), request, pathname, tenantId);
   }
 
   // Debug escape hatch: skip auth on preview routes when explicitly enabled.
@@ -169,7 +217,47 @@ export async function proxy(request: NextRequest) {
   // Protect API and preview routes with auth. `/api/templates` lives outside the
   // `/ycode` tree (public site route group) but exposes destructive builder-only
   // operations (apply/export), so it must be gated here too.
-  if (!skipPreviewAuth && (pathname.startsWith('/ycode/api') || pathname.startsWith('/ycode/preview') || pathname.startsWith('/api/templates'))) {
+  const isAuthRoute = !skipPreviewAuth && (pathname.startsWith('/ycode/api') || pathname.startsWith('/ycode/preview') || pathname.startsWith('/api/templates'));
+
+  const isPublicPage = !pathname.startsWith('/ycode')
+    && !pathname.startsWith('/_next')
+    && !pathname.startsWith('/api')
+    && !pathname.startsWith('/dynamic');
+
+  // Route handlers served on site domains that are not pages (assets, SEO
+  // files, well-known endpoints such as the OAuth discovery for MCP clients)
+  const isSiteSeoFile = SITE_SEO_FILES.includes(pathname);
+  const isSiteFileRoute = pathname.startsWith('/a/')
+    || pathname.startsWith('/.well-known/')
+    || isSiteSeoFile;
+
+  if (pathname.startsWith('/.well-known/') && !isKnownWellKnownPath(pathname)) {
+    return new NextResponse('Not found', { status: 404 });
+  }
+
+  // Files from public/ (editor canvas and slider styles, layout previews and
+  // the images layouts insert into pages) are the same for everyone: served on
+  // any host, without a session or tenant. Next's image optimizer also
+  // requests them internally.
+  const isPublicFile = PUBLIC_FILE.test(pathname);
+
+  // Plain Postgres: platform sessions instead of Supabase Auth, plus tenant resolution
+  let tenantId: string | null = null;
+  if (isPlatformAuth() && !isPublicFile) {
+    const publicApi = isPublicApiRoute(pathname, request.method, request.nextUrl.searchParams);
+    const routing = await resolvePlatformRequest(request, {
+      protectedRoute: isAuthRoute && !publicApi,
+      publicApi,
+      // Stored files are public and carry their tenant in the path
+      builderPage: pathname.startsWith('/ycode') && !isAuthRoute && !pathname.startsWith('/ycode/storage/'),
+      publicPage: (isPublicPage && !isSiteFileRoute) || pathname.startsWith('/dynamic'),
+      // Pages and SEO files move to the site's primary domain; assets and well-known endpoints stay
+      siteContent: isPublicPage && !pathname.startsWith('/a/') && !pathname.startsWith('/.well-known/'),
+      siteFile: isSiteSeoFile,
+    });
+    if (routing.response) return routing.response;
+    tenantId = routing.tenantId;
+  } else if (isAuthRoute) {
     const authResponse = await verifyApiAuth(request);
     if (authResponse) {
       if (authResponse.status === 401) {
@@ -183,37 +271,36 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  const isPublicPage = !pathname.startsWith('/ycode')
-    && !pathname.startsWith('/_next')
-    && !pathname.startsWith('/api')
-    && !pathname.startsWith('/dynamic');
   const hasPaginationParams = Array.from(request.nextUrl.searchParams.keys())
     .some((key) => key.startsWith('p_'));
 
-  if (isPublicPage && hasPaginationParams) {
+  // Multi-tenant: the static route cache is keyed by path only, which would mix
+  // sites, so every page renders through the dynamic route (data caches stay
+  // keyed per tenant)
+  if (isPublicPage && !isSiteFileRoute && (hasPaginationParams || tenantId)) {
     const rewriteUrl = request.nextUrl.clone();
     rewriteUrl.pathname = pathname === '/' ? '/dynamic' : `/dynamic${pathname}`;
 
-    const requestHeaders = new Headers(request.headers);
+    const requestHeaders = withTenantHeader(request.headers, tenantId);
     requestHeaders.set('x-pathname', pathname);
     const rewriteResponse = NextResponse.rewrite(rewriteUrl, {
       request: { headers: requestHeaders },
     });
     rewriteResponse.headers.set('x-pathname', pathname);
-    await applySecurityHeaders(rewriteResponse);
-    await prefetchYcodePublishedAt();
+    await applySecurityHeaders(rewriteResponse, tenantId ?? undefined);
+    await prefetchSiteStamp();
     return rewriteResponse;
   }
 
   // Create response
-  const response = withPathname(NextResponse.next(), request, pathname);
+  const response = withPathname(NextResponse.next(), request, pathname, tenantId);
 
   // Cache-Control for public pages is configured centrally via next.config.ts headers().
 
   // Apply configurable security headers to public pages only (not builder/API).
   if (isPublicPage) {
-    await applySecurityHeaders(response);
-    await prefetchYcodePublishedAt();
+    await applySecurityHeaders(response, tenantId ?? undefined);
+    await prefetchSiteStamp();
   }
 
   return response;
@@ -225,8 +312,8 @@ export const config = {
      * Match all request paths except:
      * - _next/static (static files)
      * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
+     * favicon.ico is per site, so it goes through the proxy too
      */
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image).*)',
   ],
 };

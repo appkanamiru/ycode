@@ -7,6 +7,7 @@
 
 import type { CollectionItemWithValues } from '@/types';
 import { formatFieldValue, normalizeInlineVariableFormats, resolveFieldFromSources } from '@/lib/cms-variables-utils';
+import { DEFAULT_VALUE_FORMAT, type ValueFormat } from '@/lib/value-format';
 
 /** Regex for matching inline variable tags (use with 'g' flag) */
 export const INLINE_VARIABLE_REGEX = /<ycode-inline-variable>([\s\S]*?)<\/ycode-inline-variable>/g;
@@ -17,12 +18,12 @@ export const INLINE_VARIABLE_REGEX = /<ycode-inline-variable>([\s\S]*?)<\/ycode-
  * with actual field values from the collection item
  *
  * CLIENT-SAFE: Pure string manipulation, works on both client and server
- * @param timezone - Optional timezone for formatting date values (defaults to UTC)
+ * @param valueFormat - Timezone and language for formatting date and number values
  */
 export function resolveInlineVariables(
   text: string,
   collectionItem: CollectionItemWithValues | null | undefined,
-  timezone: string = 'UTC',
+  valueFormat: ValueFormat = DEFAULT_VALUE_FORMAT,
   rawValues?: Record<string, string>
 ): string {
   if (!collectionItem || !collectionItem.values) {
@@ -44,7 +45,7 @@ export function resolveInlineVariables(
         const value = (parsed.data.format && rawValues)
           ? (rawValues[parsed.data.field_id] ?? fieldValue)
           : fieldValue;
-        return formatFieldValue(value, parsed.data.field_type, timezone, parsed.data.format);
+        return formatFieldValue(value, parsed.data.field_type, valueFormat.timezone, parsed.data.format, valueFormat.locale);
       }
     } catch {
       // Invalid JSON or not a field variable, leave as is
@@ -60,14 +61,14 @@ export function resolveInlineVariables(
  * @param text - Text containing inline variable tags
  * @param collectionItemData - Merged collection layer data
  * @param pageCollectionItemData - Page collection data for dynamic pages
- * @param timezone - Optional timezone for formatting date values (defaults to UTC)
+ * @param valueFormat - Timezone and language for formatting date and number values
  * @param layerDataMap - Optional map of layer ID → item data (for layer-specific resolution)
  */
 export function resolveInlineVariablesFromData(
   text: string,
   collectionItemData?: Record<string, string>,
   pageCollectionItemData?: Record<string, string> | null,
-  timezone: string = 'UTC',
+  valueFormat: ValueFormat = DEFAULT_VALUE_FORMAT,
   layerDataMap?: Record<string, Record<string, string>>
 ): string {
   if (!text) return '';
@@ -99,7 +100,7 @@ export function resolveInlineVariablesFromData(
           parsed.data.collection_layer_id,
           layerDataMap
         );
-        return formatFieldValue(fieldValue, parsed.data.field_type, timezone, parsed.data.format);
+        return formatFieldValue(fieldValue, parsed.data.field_type, valueFormat.timezone, parsed.data.format, valueFormat.locale);
       }
     } catch {
       // Invalid JSON

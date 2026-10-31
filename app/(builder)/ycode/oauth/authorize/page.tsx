@@ -2,7 +2,12 @@ import { redirect } from 'next/navigation';
 import { getAuthUser } from '@/lib/supabase-auth';
 import { isRedirectUriRegistered, resolveOAuthClient } from '@/lib/oauth/resolve-client';
 import { getSettingByKey } from '@/lib/repositories/settingsRepository';
-import ConsentForm from './ConsentForm';
+import { headers } from 'next/headers';
+import { isMultiTenant } from '@/lib/database/tenancy';
+import { listSites } from '@/lib/platform/sites';
+import { resolveResourceSite } from '@/lib/platform/mcp-site';
+import { resolveBuilderAccess } from '@/lib/platform/tenants';
+import ConsentForm, { type ConsentSite } from './ConsentForm';
 
 /**
  * OAuth Consent Page
@@ -68,6 +73,7 @@ export default async function AuthorizePage({
   const codeChallengeMethod = asString(params.code_challenge_method);
   const scope = asString(params.scope);
   const state = asString(params.state);
+  const resource = asString(params.resource);
 
   if (!responseType || !clientId || !redirectUri || !codeChallenge || !codeChallengeMethod) {
     return (
@@ -142,8 +148,37 @@ export default async function AuthorizePage({
     console.error('[oauth/authorize page] getSettingByKey(site_name) failed:', error);
   }
 
+  // Multi-tenant: the editor's endpoint connects to all of the user's sites
+  // (also ones they join later); a site's own MCP address (the `resource`)
+  // to that site only, which the user must be a member of
+  let sites: ConsentSite[] | null = null;
+  let defaultSiteId: string | null = null;
+  let account = false;
+  if (isMultiTenant()) {
+    const resourceSite = await resolveResourceSite(resource);
+    if (resourceSite === undefined) {
+      account = true;
+    } else {
+      const access = await resolveBuilderAccess(await headers());
+      const memberships = (access ? await listSites(access.user.id, access.tenantId) : [])
+        .filter((site) => site.id === resourceSite);
+      if (memberships.length === 0) {
+        return (
+          <ErrorPanel
+            title="No access to this site"
+            message="The connector's address belongs to a site you are not a member of. Sign in with an account that can edit it."
+          />
+        );
+      }
+      sites = memberships.map((site) => ({ id: site.id, name: site.name, host: site.url ? new URL(site.url).host : null }));
+      defaultSiteId = memberships[0].id;
+    }
+  }
+
   return (
     <ConsentForm
+      sites={sites}
+      defaultSiteId={defaultSiteId}
       clientName={client.client_name}
       siteName={siteName}
       userEmail={auth.user.email || ''}
@@ -153,6 +188,8 @@ export default async function AuthorizePage({
       codeChallengeMethod={codeChallengeMethod}
       scope={scope}
       state={state}
+      resource={resource}
+      account={account}
     />
   );
 }
