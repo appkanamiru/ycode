@@ -14,7 +14,7 @@ export const DEFAULT_SITE_LIMIT = 1;
 
 /** Subdomains that belong to the platform, not to sites */
 const RESERVED_SLUGS = new Set([
-  'app', 'www', 'api', 'admin', 'auth', 'login', 'signin', 'signup', 'account', 'accounts',
+  'app', 'builder', 'www', 'api', 'admin', 'auth', 'login', 'signin', 'signup', 'account', 'accounts',
   'dashboard', 'mail', 'email', 'smtp', 'imap', 'pop', 'ftp', 'cdn', 'static', 'assets',
   'media', 'files', 'storage', 'status', 'help', 'support', 'docs', 'blog', 'billing',
   'ns1', 'ns2', 'mx', 'test', 'staging', 'dev', 'ycode', 'mcp', 'oauth',

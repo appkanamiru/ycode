@@ -17,7 +17,7 @@ test('invalid site slugs', () => {
 });
 
 test('platform subdomains are reserved', () => {
-  for (const slug of ['app', 'www', 'api', 'mail', 'admin']) {
+  for (const slug of ['app', 'builder', 'www', 'api', 'mail', 'admin']) {
     assert.equal(validateSiteSlug(slug), 'This address is reserved', slug);
   }
 });

@@ -1,7 +1,7 @@
 # Caddy in front of the multi-tenant platform (YCODE_MULTI_TENANT=true).
 #
 # Replace appkanamiru.cz with your PLATFORM_SITES_DOMAIN, and `app:3002` with
-# the app's address. DNS: point `*.appkanamiru.cz` and `app.appkanamiru.cz`
+# the app's address. DNS: point `*.appkanamiru.cz` and `builder.appkanamiru.cz`
 # at this server; customers point their own domains here (CNAME to their
 # site's subdomain, or an A record to PLATFORM_DOMAIN_IPV4 for apex domains).
 {
@@ -21,7 +21,7 @@
 # Issuing a certificate per subdomain on demand instead would run into Let's
 # Encrypt's limit of 50 certificates per domain per week. Public resolvers
 # find the DNS zone reliably; a host's own resolver may report the wrong one.
-app.appkanamiru.cz, *.appkanamiru.cz {
+builder.appkanamiru.cz, *.appkanamiru.cz {
 	tls {
 		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
 		resolvers 1.1.1.1 1.0.0.1

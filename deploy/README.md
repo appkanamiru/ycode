@@ -43,7 +43,7 @@ To start over: `docker compose -p ycode down -v` (deletes all data).
 
 1. **Server**: Linux with Docker, ports 80 and 443 open. Note its public IPv4.
 2. **DNS** at Cloudflare for your platform domain (e.g. `appkanamiru.cz`):
-   - `app` → A record to the server
+   - `builder` → A record to the server (the editor, BETTER_AUTH_URL)
    - `*` → A record to the server
 
    Set both to **DNS only** (grey cloud), not proxied: customers' own domains
