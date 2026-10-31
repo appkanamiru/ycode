@@ -25,7 +25,8 @@ const sessionSites = globalForAccount.__mcpAccountSessionSites ??= new Map();
 async function findUserSite(userId: string, site: string): Promise<SiteSummary | null> {
   const wanted = site.trim().toLowerCase();
   const sites = await listSites(userId, null);
-  return sites.find((candidate) => candidate.slug === wanted || candidate.id === wanted || candidate.domains.includes(wanted)) ?? null;
+  return sites.find((candidate) => candidate.slug === wanted || candidate.id === wanted || candidate.domains.includes(wanted)
+    || (candidate.url !== null && new URL(candidate.url).host === wanted)) ?? null;
 }
 
 export type AccountCallSite =
@@ -66,7 +67,7 @@ export function getAccountMcpOptions(userId: string): CreateMcpServerOptions {
     extraTools: (server) => {
       server.registerTool('list_sites', {
         title: 'List sites',
-        description: 'List the sites this connection can work on, with their slug, name, your role and address. The selected site is marked.',
+        description: 'List the sites this connection can work on, with their slug, name, your role, address (where the site is served) and verified domains. The selected site is marked.',
         inputSchema: {},
         annotations: { readOnlyHint: true },
       }, async (_args, extra) => {

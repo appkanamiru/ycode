@@ -7,7 +7,7 @@
  * setting (`siteLimit`, default 1).
  */
 
-import { PLATFORM_SCHEMA, getSitesDomain } from './config';
+import { PLATFORM_SCHEMA, getHomeSiteSlug, getSitesDomain } from './config';
 import { getPlatformPool } from './db';
 
 export const DEFAULT_SITE_LIMIT = 1;
@@ -37,6 +37,17 @@ export function getSiteUrl(slug: string): string | null {
   return domain ? `https://${slug}.${domain}` : null;
 }
 
+/**
+ * Where a site is served (its other addresses redirect there): its primary
+ * custom domain, the sites domain itself for the home site, else its subdomain.
+ */
+function getSiteAddress(slug: string, primaryDomain: string | null): string | null {
+  if (primaryDomain) return `https://${primaryDomain}`;
+  const domain = getSitesDomain();
+  if (domain && slug === getHomeSiteSlug()) return `https://${domain}`;
+  return getSiteUrl(slug);
+}
+
 export async function countOwnedSites(userId: string): Promise<number> {
   const { rows } = await getPlatformPool().query(
     `select count(*)::int as count from ${PLATFORM_SCHEMA}.member where "userId" = $1 and role = 'owner'`,
@@ -59,7 +70,8 @@ export interface SiteSummary {
 export async function listSites(userId: string, activeSiteId: string | null): Promise<SiteSummary[]> {
   const { rows } = await getPlatformPool().query(
     `select o.id, o.name, o.slug, m.role,
-       coalesce(array_agg(d.hostname order by d.is_primary desc, d.hostname) filter (where d.verified_at is not null), '{}') as domains
+       coalesce(array_agg(d.hostname order by d.is_primary desc, d.hostname) filter (where d.verified_at is not null), '{}') as domains,
+       max(d.hostname) filter (where d.verified_at is not null and d.is_primary) as primary_domain
      from ${PLATFORM_SCHEMA}.member m
      join ${PLATFORM_SCHEMA}.organization o on o.id = m."organizationId"
      left join ${PLATFORM_SCHEMA}.domains d on d.tenant_id = o.id
@@ -74,7 +86,7 @@ export async function listSites(userId: string, activeSiteId: string | null): Pr
     name: row.name,
     slug: row.slug,
     role: row.role,
-    url: getSiteUrl(row.slug),
+    url: getSiteAddress(row.slug, row.primary_domain),
     domains: row.domains,
     active: row.id === activeSiteId,
   }));
