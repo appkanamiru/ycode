@@ -2,7 +2,7 @@ import '@/app/site.css';
 import type { ReactNode } from 'react';
 import type { Metadata } from 'next';
 import HreflangAlternateLinks from '@/components/HreflangAlternateLinks';
-import RootLayoutShell, { defaultMetadata } from '@/components/RootLayoutShell';
+import RootLayoutShell, { getDefaultMetadata } from '@/components/RootLayoutShell';
 import { composeDocumentBodyClassName } from '@/lib/body-classes';
 import { setDocumentPathname } from '@/lib/document-path';
 import { fetchGlobalPageSettings } from '@/lib/generate-page-metadata';
@@ -11,7 +11,7 @@ import { resolvePageDocumentChrome } from '@/lib/resolve-page-head-code';
 import { getSiteGenerator, runWithYcodeStamp } from '@/lib/ycode-html-comment';
 
 function getGeneratorMetadata(): Metadata {
-  return { ...defaultMetadata, other: { generator: getSiteGenerator().name } };
+  return { ...getDefaultMetadata(), other: { generator: getSiteGenerator().name } };
 }
 
 interface SiteDocumentLayoutProps {
