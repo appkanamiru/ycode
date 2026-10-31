@@ -141,7 +141,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Process app integrations (fire and forget)
-    processAppIntegrations(body.form_id, submission.id, payload);
+    processAppIntegrations(body.form_id, submission.id, payload, {
+      pageUrl: typeof metadata.page_url === 'string' ? metadata.page_url : undefined,
+      submittedAt: submission.created_at,
+    });
 
     return NextResponse.json(
       { data: submission, message: 'Form submitted successfully' },

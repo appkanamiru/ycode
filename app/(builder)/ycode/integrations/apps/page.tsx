@@ -46,6 +46,7 @@ import type { MailerLiteConnection, MailerLiteFieldMapping } from '@/lib/apps/ma
 import AirtableSettings from './airtable-settings';
 import WebflowSettings from './webflow-settings';
 import StaticExportSettings from './static-export-settings';
+import DiscordSettings from './discord-settings';
 
 // =============================================================================
 // Types
@@ -1125,6 +1126,10 @@ export default function AppsPage() {
 
             {selectedAppId === 'static-export' && (
               <StaticExportSettings />
+            )}
+
+            {selectedAppId === 'discord' && (
+              <DiscordSettings onConnectionChange={(connected) => updateAppStatus('discord', connected)} />
             )}
 
             {selectedAppId === 'mailerlite' && (

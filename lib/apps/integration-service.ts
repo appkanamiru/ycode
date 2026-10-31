@@ -10,8 +10,17 @@
  */
 
 import { getAppSettingValue } from '@/lib/repositories/appSettingsRepository';
+import { getSettingByKey } from '@/lib/repositories/settingsRepository';
 import { processFormSubmission } from '@/lib/apps/mailerlite';
 import type { MailerLiteConnection } from '@/lib/apps/mailerlite/types';
+import { buildFormSubmissionMessage, getConnectionsForForm, sendDiscordMessage } from '@/lib/apps/discord';
+import type { DiscordConnection } from '@/lib/apps/discord/types';
+
+export interface SubmissionContext {
+  /** Page the form was sent from (reported by the browser) */
+  pageUrl?: string;
+  submittedAt?: string;
+}
 
 /**
  * Process a form submission through all configured app integrations.
@@ -20,10 +29,14 @@ import type { MailerLiteConnection } from '@/lib/apps/mailerlite/types';
 export async function processAppIntegrations(
   formId: string,
   submissionId: string,
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
+  context: SubmissionContext = {},
 ): Promise<void> {
   try {
-    await processMailerLiteIntegration(formId, payload);
+    await Promise.all([
+      processMailerLiteIntegration(formId, payload),
+      processDiscordIntegration(formId, payload, context),
+    ]);
   } catch (error) {
     console.error('[processAppIntegrations] Unexpected error:', error);
   }
@@ -83,5 +96,50 @@ async function processMailerLiteIntegration(
     }
   } catch (error) {
     console.error('[MailerLite] Integration error:', error);
+  }
+}
+
+/** Where the editor lists form submissions: the editor's own origin, else the site's */
+function getSubmissionsUrl(pageUrl?: string): string | null {
+  const editor = process.env.BETTER_AUTH_URL;
+  try {
+    const origin = editor ? new URL(editor).origin : pageUrl ? new URL(pageUrl).origin : null;
+    return origin ? `${origin}/ycode/forms` : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Process form submission for Discord: a message in each connected channel
+ */
+async function processDiscordIntegration(
+  formId: string,
+  payload: Record<string, unknown>,
+  context: SubmissionContext,
+): Promise<void> {
+  try {
+    const connections = await getAppSettingValue<DiscordConnection[]>('discord', 'connections');
+    const targets = getConnectionsForForm(connections ?? [], formId);
+    if (targets.length === 0) return;
+
+    const siteName = await getSettingByKey('site_name').catch(() => null);
+    const message = buildFormSubmissionMessage({
+      formId,
+      fields: payload,
+      siteName: typeof siteName === 'string' ? siteName : null,
+      pageUrl: context.pageUrl,
+      submissionsUrl: getSubmissionsUrl(context.pageUrl),
+      submittedAt: context.submittedAt,
+    });
+
+    const results = await Promise.all(targets.map((target) => sendDiscordMessage(target.webhookUrl, message)));
+    results.forEach((result, index) => {
+      if (!result.success) {
+        console.error(`[Discord] Failed to notify "${targets[index].name}" of form "${formId}":`, result.error);
+      }
+    });
+  } catch (error) {
+    console.error('[Discord] Integration error:', error);
   }
 }
