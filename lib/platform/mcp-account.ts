@@ -1,8 +1,10 @@
 /**
  * Account-wide MCP Connections
  *
- * An MCP client connected at `/ycode/mcp/account` works on every site of
- * the user who approved it; each tool call names its site. Its OAuth codes
+ * An MCP client connected at the editor's `/ycode/mcp` works on every site
+ * of the user who approved it, including sites they join later; each tool
+ * call names its site. (A site's own address, `<slug>.<sites domain>/ycode/mcp`,
+ * connects to that site only.) Its OAuth codes
  * and tokens belong to the user, not to a site, so they live in the platform
  * schema instead of the per-site mcp_oauth_codes / mcp_tokens. Only hashes
  * are stored. Lifetimes and refresh rotation match the per-site tokens.
@@ -12,8 +14,6 @@ import { createHash, randomBytes } from 'crypto';
 
 import { PLATFORM_SCHEMA } from './config';
 import { getPlatformPool } from './db';
-
-export const ACCOUNT_MCP_PATH = '/ycode/mcp/account';
 
 const CODE_PREFIX = 'mcp_acct_';
 const ACCESS_PREFIX = 'yma_';
@@ -34,6 +34,11 @@ const accessCache = globalForAccount.__mcpAccountTokenCache ??= new Map();
 
 function hash(value: string): string {
   return createHash('sha256').update(value).digest('hex');
+}
+
+/** Whether an access token is one of an account-wide connection */
+export function isAccountAccessToken(token: string | null | undefined): boolean {
+  return Boolean(token?.startsWith(ACCESS_PREFIX));
 }
 
 /** Whether a code or refresh token was issued for an account-wide connection */
@@ -135,7 +140,7 @@ export async function rotateAccountRefreshToken(refreshToken: string, clientId: 
 
 /** The user an access token acts for, or null when it is not valid */
 export async function validateAccountToken(accessToken: string): Promise<string | null> {
-  if (!accessToken.startsWith(ACCESS_PREFIX)) return null;
+  if (!isAccountAccessToken(accessToken)) return null;
   const tokenHash = hash(accessToken);
   const cached = accessCache.get(tokenHash);
   if (cached && cached.expiresAt > Date.now()) return cached.userId;

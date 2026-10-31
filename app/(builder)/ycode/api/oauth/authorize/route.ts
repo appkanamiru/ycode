@@ -4,7 +4,7 @@ import { isRedirectUriRegistered, resolveOAuthClient } from '@/lib/oauth/resolve
 import { createCode } from '@/lib/repositories/mcpOAuthCodeRepository';
 import { isMultiTenant } from '@/lib/database/tenancy';
 import { createAccountCode } from '@/lib/platform/mcp-account';
-import { isAccountResource, resolveResourceSite } from '@/lib/platform/mcp-site';
+import { resolveResourceSite } from '@/lib/platform/mcp-site';
 import { getSiteMembership } from '@/lib/platform/sites';
 import { runInTenantContext } from '@/lib/supabase-server';
 
@@ -30,8 +30,7 @@ interface AuthorizeBody {
   state?: unknown;
   scope?: unknown;
   decision?: unknown; // 'approve' | 'deny'
-  site_id?: unknown; // multi-tenant: the site the client gets access to
-  resource?: unknown; // the MCP endpoint (RFC 8707); a site's own address names the site
+  resource?: unknown; // the MCP endpoint (RFC 8707); multi-tenant, a site's own address names the site
 }
 
 function redirectWithError(
@@ -117,40 +116,33 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ redirect_to: url });
   }
 
-  // The account-wide endpoint: the code belongs to the user, for all their sites
+  // Multi-tenant: a site's own MCP address (the `resource`) connects to that
+  // site, which the user must be a member of; the editor's endpoint to all of
+  // their sites, with a code that belongs to the user
   const resource = typeof body.resource === 'string' ? body.resource : null;
-  if (isAccountResource(resource)) {
-    const code = await createAccountCode({
-      userId: auth.user.id,
-      clientId,
-      redirectUri,
-      codeChallenge,
-      codeChallengeMethod,
-    });
-    const url = new URL(redirectUri);
-    url.searchParams.set('code', code);
-    if (state) url.searchParams.set('state', state);
-    return NextResponse.json({ redirect_to: url.toString() });
-  }
-
-  // Multi-tenant: the code (and the tokens issued for it) belong to the site
-  // the user picked, which they must be a member of
   let siteId: string | null = null;
   if (isMultiTenant()) {
-    siteId = typeof body.site_id === 'string' ? body.site_id : null;
     const resourceSite = await resolveResourceSite(resource);
-    if (resourceSite !== undefined && resourceSite !== siteId) {
+    if (resourceSite === undefined) {
+      const code = await createAccountCode({
+        userId: auth.user.id,
+        clientId,
+        redirectUri,
+        codeChallenge,
+        codeChallengeMethod,
+      });
+      const url = new URL(redirectUri);
+      url.searchParams.set('code', code);
+      if (state) url.searchParams.set('state', state);
+      return NextResponse.json({ redirect_to: url.toString() });
+    }
+    if (!resourceSite || !(await getSiteMembership(auth.user.id, resourceSite))) {
       return NextResponse.json(
-        { error: 'invalid_target', error_description: 'This connector is for another site' },
+        { error: 'invalid_target', error_description: 'You are not a member of the site this connector is for' },
         { status: 400 },
       );
     }
-    if (!siteId || !(await getSiteMembership(auth.user.id, siteId))) {
-      return NextResponse.json(
-        { error: 'invalid_request', error_description: 'Choose one of your sites' },
-        { status: 400 },
-      );
-    }
+    siteId = resourceSite;
   }
 
   try {

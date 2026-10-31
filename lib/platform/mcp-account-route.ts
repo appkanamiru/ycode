@@ -1,4 +1,11 @@
-import { NextRequest } from 'next/server';
+/**
+ * Account-wide MCP Requests
+ *
+ * The editor's `/ycode/mcp` (multi-tenant) with an account token: one
+ * connection for all of the user's sites. Each call runs scoped to the site
+ * it names, or the session's selected site.
+ */
+
 import {
   addCorsHeaders,
   buildWwwAuthenticateHeader,
@@ -8,29 +15,27 @@ import {
 } from '@/lib/mcp/handler';
 import { isMultiTenant } from '@/lib/database/tenancy';
 import { getBaseUrl } from '@/lib/oauth/metadata';
-import { ACCOUNT_MCP_PATH, validateAccountToken } from '@/lib/platform/mcp-account';
-import { ACCOUNT_TOOLS, getAccountMcpOptions, resolveAccountCallSite } from '@/lib/platform/mcp-account-server';
+import { isAccountAccessToken, validateAccountToken } from './mcp-account';
+import { ACCOUNT_TOOLS, getAccountMcpOptions, resolveAccountCallSite } from './mcp-account-server';
 import { runInTenantContext } from '@/lib/supabase-server';
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-
-/**
- * Account-wide MCP endpoint (multi-tenant): one connector for all of the
- * user's sites. OAuth Bearer tokens from an account consent; each call is
- * run scoped to the site it names (or the session's selected site).
- */
+function bearerToken(request: Request): string | null {
+  return request.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() ?? null;
+}
 
 /** Served on the editor's host only: a site's own address is for that site */
-function isEditorHost(request: NextRequest): boolean {
+function isEditorHost(request: Request): boolean {
   const editor = process.env.BETTER_AUTH_URL;
   return Boolean(editor) && request.headers.get('host')?.toLowerCase() === new URL(editor!).host.toLowerCase();
 }
 
-async function authorize(request: NextRequest): Promise<string | Response> {
-  if (!isMultiTenant() || !isEditorHost(request)) return addCorsHeaders(new Response('Not found', { status: 404 }));
+/** An account connection's request: an account token on the editor's endpoint */
+export function isAccountMcpRequest(request: Request): boolean {
+  return isMultiTenant() && isEditorHost(request) && isAccountAccessToken(bearerToken(request));
+}
 
-  const token = request.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+async function authorize(request: Request): Promise<string | Response> {
+  const token = bearerToken(request);
   const userId = token ? await validateAccountToken(token) : null;
   if (userId) return userId;
 
@@ -38,7 +43,7 @@ async function authorize(request: NextRequest): Promise<string | Response> {
     status: 401,
     headers: {
       'Content-Type': 'application/json',
-      'WWW-Authenticate': buildWwwAuthenticateHeader(getBaseUrl(request), ACCOUNT_MCP_PATH),
+      'WWW-Authenticate': buildWwwAuthenticateHeader(getBaseUrl(request)),
     },
   }));
 }
@@ -51,7 +56,7 @@ function toolError(id: unknown, text: string): Response {
   }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
 }
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: Request): Promise<Response> {
   const userId = await authorize(request);
   if (userId instanceof Response) return userId;
 
@@ -83,18 +88,12 @@ export async function POST(request: NextRequest) {
   return runInTenantContext(tenantId, () => handleMcpPost(forwarded, getAccountMcpOptions(userId), `account:${userId}`));
 }
 
-export async function GET(request: NextRequest) {
+export async function handleAccountMcp(request: Request): Promise<Response> {
+  if (request.method === 'POST') return handlePost(request);
+
   const userId = await authorize(request);
   if (userId instanceof Response) return userId;
-  return handleMcpGet(request, `account:${userId}`);
-}
-
-export async function DELETE(request: NextRequest) {
-  const userId = await authorize(request);
-  if (userId instanceof Response) return userId;
-  return handleMcpDelete(request, `account:${userId}`);
-}
-
-export async function OPTIONS() {
-  return addCorsHeaders(new Response(null, { status: 204 }));
+  return request.method === 'DELETE'
+    ? handleMcpDelete(request, `account:${userId}`)
+    : handleMcpGet(request, `account:${userId}`);
 }

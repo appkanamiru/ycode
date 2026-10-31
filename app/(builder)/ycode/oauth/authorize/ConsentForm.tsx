@@ -60,7 +60,6 @@ export default function ConsentForm(props: ConsentFormProps) {
           code_challenge_method: props.codeChallengeMethod,
           scope: props.scope,
           state: props.state,
-          site_id: siteId,
           resource: props.resource,
         }),
       });

@@ -49,7 +49,7 @@ export default function McpPage() {
       if (site && platform?.sitesDomain) {
         setMcpUrl(`${protocol}//${site.slug}.${platform.sitesDomain}/ycode/mcp`);
         // One connector for all of the user's sites
-        setAccountUrl(`${origin}/ycode/mcp/account`);
+        setAccountUrl(`${origin}/ycode/mcp`);
         fetchAccountConnections();
       }
     }).catch(() => {});
@@ -146,7 +146,7 @@ export default function McpPage() {
             <McpEndpointCard
               url={accountUrl}
               title="All your sites"
-              description="One connector for every site you are a member of. The AI tool lists your sites and picks the one to work on."
+              description="One connector for every site you are a member of, including sites you join later. The AI tool lists your sites and picks the one to work on."
             />
             {accountConnections.length > 0 && (
               <div className="flex flex-col gap-2">

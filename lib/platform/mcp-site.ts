@@ -9,7 +9,6 @@ import { isMultiTenant } from '@/lib/database/tenancy';
 import { getTenantIdFromHeaders } from '@/lib/supabase-server';
 import { getHomeSiteSlug, getSitesDomain, PLATFORM_SCHEMA } from './config';
 import { getPlatformPool } from './db';
-import { ACCOUNT_MCP_PATH } from './mcp-account';
 import { normalizeHostname, resolveTenantByHost } from './tenants';
 
 /**
@@ -50,8 +49,8 @@ the site you were asked to work on before making changes.`,
 /**
  * The site an OAuth `resource` (RFC 8707) is for: the MCP endpoint on a
  * site's own address names that site. Undefined for the editor's endpoint
- * (or none given), where the user picks the site; null for an address no
- * site has.
+ * (or none given), which connects to all of the user's sites; null for an
+ * address no site has.
  */
 export async function resolveResourceSite(resource: string | null): Promise<string | null | undefined> {
   if (!resource || !isMultiTenant()) return undefined;
@@ -67,15 +66,4 @@ export async function resolveResourceSite(resource: string | null): Promise<stri
 
 function getBuilderHost(): string | null {
   return process.env.BETTER_AUTH_URL ? normalizeHostname(new URL(process.env.BETTER_AUTH_URL).host) : null;
-}
-
-/** Whether an OAuth `resource` is the account-wide MCP endpoint (all of the user's sites) */
-export function isAccountResource(resource: string | null): boolean {
-  if (!resource || !isMultiTenant()) return false;
-  try {
-    const url = new URL(resource);
-    return normalizeHostname(url.host) === getBuilderHost() && url.pathname.replace(/\/+$/, '') === ACCOUNT_MCP_PATH;
-  } catch {
-    return false;
-  }
 }

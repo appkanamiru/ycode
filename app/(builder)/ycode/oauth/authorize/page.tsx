@@ -5,7 +5,7 @@ import { getSettingByKey } from '@/lib/repositories/settingsRepository';
 import { headers } from 'next/headers';
 import { isMultiTenant } from '@/lib/database/tenancy';
 import { listSites } from '@/lib/platform/sites';
-import { isAccountResource, resolveResourceSite } from '@/lib/platform/mcp-site';
+import { resolveResourceSite } from '@/lib/platform/mcp-site';
 import { resolveBuilderAccess } from '@/lib/platform/tenants';
 import ConsentForm, { type ConsentSite } from './ConsentForm';
 
@@ -148,18 +148,20 @@ export default async function AuthorizePage({
     console.error('[oauth/authorize page] getSettingByKey(site_name) failed:', error);
   }
 
-  // Multi-tenant: the user picks which of their sites the client gets access
-  // to, starting from the one active in the editor. A connector added with a
-  // site's own MCP address (the `resource`) is for that site only.
+  // Multi-tenant: the editor's endpoint connects to all of the user's sites
+  // (also ones they join later); a site's own MCP address (the `resource`)
+  // to that site only, which the user must be a member of
   let sites: ConsentSite[] | null = null;
   let defaultSiteId: string | null = null;
-  const account = isAccountResource(resource);
-  if (isMultiTenant() && !account) {
-    const access = await resolveBuilderAccess(await headers());
-    let memberships = access ? await listSites(access.user.id, access.tenantId) : [];
+  let account = false;
+  if (isMultiTenant()) {
     const resourceSite = await resolveResourceSite(resource);
-    if (resourceSite !== undefined) {
-      memberships = memberships.filter((site) => site.id === resourceSite);
+    if (resourceSite === undefined) {
+      account = true;
+    } else {
+      const access = await resolveBuilderAccess(await headers());
+      const memberships = (access ? await listSites(access.user.id, access.tenantId) : [])
+        .filter((site) => site.id === resourceSite);
       if (memberships.length === 0) {
         return (
           <ErrorPanel
@@ -168,17 +170,9 @@ export default async function AuthorizePage({
           />
         );
       }
+      sites = memberships.map((site) => ({ id: site.id, name: site.name, host: site.url ? new URL(site.url).host : null }));
+      defaultSiteId = memberships[0].id;
     }
-    if (memberships.length === 0) {
-      return (
-        <ErrorPanel
-          title="No sites yet"
-          message="Create a site first, then connect this application to it."
-        />
-      );
-    }
-    sites = memberships.map((site) => ({ id: site.id, name: site.name, host: site.url ? new URL(site.url).host : null }));
-    defaultSiteId = memberships.find((site) => site.active)?.id ?? memberships[0].id;
   }
 
   return (
