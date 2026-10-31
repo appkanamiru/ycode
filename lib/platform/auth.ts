@@ -24,7 +24,7 @@ import { PostgresDialect } from 'kysely';
 import { getKnexClient } from '@/lib/knex-client';
 import { provisionTenant } from '@/lib/database/tenant-provisioning';
 import { setNewSiteName } from './site-defaults';
-import { ensureSiteAnalytics, SITE_ANALYTICS_TABLE_SQL, syncSiteAnalyticsLater } from './analytics';
+import { SITE_ANALYTICS_TABLE_SQL, syncSiteAnalyticsLater } from './analytics';
 import { isMultiTenant } from '@/lib/database/tenancy';
 import { getInvitationUrl, PLATFORM_AUTH_BASE_PATH, PLATFORM_SCHEMA } from './config';
 import { getPlatformPool } from './db';
@@ -180,10 +180,6 @@ export function createAuthOptions() {
             const knex = await getKnexClient();
             await provisionTenant(knex, created.id);
             await setNewSiteName(knex, created.id, created.name);
-            // Statistics are not worth failing site creation for: page views retry later
-            ensureSiteAnalytics(created.id).catch((error) => {
-              console.error('[analytics] Could not create the Umami website:', error);
-            });
           },
         },
       }),

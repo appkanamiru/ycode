@@ -1,15 +1,16 @@
 /**
  * Visitor Statistics (Umami)
  *
- * Every site gets an Umami website, created on first need and remembered in
- * platform.site_analytics; published pages load the tracker from the site's
- * own host (see UMAMI_SITE_PATH). The app signs in to Umami as its `admin`
+ * Sites served on their own address (a primary domain, or the home site) get
+ * an Umami website, created when they get the address and remembered in
+ * platform.site_analytics; their published pages load the tracker from the
+ * site's own host (see UMAMI_SITE_PATH). The app signs in to Umami as its `admin`
  * account, whose default password it replaces with UMAMI_ADMIN_PASSWORD the
  * first time. Platform admins open Umami through its SSO page with a token
  * the app obtains, so their editor session is the only login they need.
  */
 
-import { getUmamiConfig, PLATFORM_SCHEMA, type UmamiConfig } from './config';
+import { getHomeSiteSlug, getUmamiConfig, PLATFORM_SCHEMA, type UmamiConfig } from './config';
 import { getPlatformPool } from './db';
 import { getSiteAddress } from './sites';
 
@@ -86,23 +87,45 @@ async function umamiFetch(config: UmamiConfig, path: string, init: RequestInit =
   return response.status === 401 ? send(await getToken(config, true)) : response;
 }
 
-/** How Umami lists a site: its name, and the host it is served on */
-async function getWebsiteLabel(tenantId: string): Promise<{ name: string; domain: string } | null> {
+interface SiteStatsState {
+  websiteId: string | null;
+  /** Statistics are part of serving a site on its own address (see hasOwnAddress) */
+  tracked: boolean;
+  /** How Umami lists the site: its name, and the host it is served on */
+  label: { name: string; domain: string };
+}
+
+/**
+ * Sites are tracked once they are served on their own address: a primary
+ * custom domain, or the sites domain itself for the home site. On a free
+ * subdomain there is nothing to track (later a paid feature).
+ */
+function hasOwnAddress(slug: string, primaryDomain: string | null): boolean {
+  return Boolean(primaryDomain) || slug === getHomeSiteSlug();
+}
+
+async function getSiteStatsState(tenantId: string): Promise<SiteStatsState | null> {
   const { rows } = await getPlatformPool().query(
-    `select o.name, o.slug, d.hostname as primary_domain from ${PLATFORM_SCHEMA}.organization o
+    `select o.name, o.slug, d.hostname as primary_domain, a.website_id from ${PLATFORM_SCHEMA}.organization o
      left join ${PLATFORM_SCHEMA}.domains d on d.tenant_id = o.id and d.is_primary and d.verified_at is not null
+     left join ${PLATFORM_SCHEMA}.site_analytics a on a.tenant_id = o.id
      where o.id = $1`,
     [tenantId],
   );
-  if (!rows[0]) return null;
-  const address = getSiteAddress(rows[0].slug, rows[0].primary_domain);
+  const row = rows[0];
+  if (!row) return null;
+  const address = getSiteAddress(row.slug, row.primary_domain);
   return {
-    name: String(rows[0].name || rows[0].slug).slice(0, 100),
-    domain: address ? new URL(address).host : rows[0].slug,
+    websiteId: row.website_id ?? null,
+    tracked: hasOwnAddress(row.slug, row.primary_domain),
+    label: {
+      name: String(row.name || row.slug).slice(0, 100),
+      domain: address ? new URL(address).host : row.slug,
+    },
   };
 }
 
-/** The site's Umami website id, creating the website when it has none */
+/** The site's Umami website id, creating the website for a tracked site that has none */
 export async function ensureSiteAnalytics(tenantId: string): Promise<string | null> {
   const config = getUmamiConfig();
   if (!config) return null;
@@ -111,22 +134,16 @@ export async function ensureSiteAnalytics(tenantId: string): Promise<string | nu
   if (running) return running;
 
   const task = (async () => {
-    const pool = getPlatformPool();
-    const existing = await pool.query(
-      `select website_id from ${PLATFORM_SCHEMA}.site_analytics where tenant_id = $1`,
-      [tenantId],
-    );
-    if (existing.rows[0]) return existing.rows[0].website_id as string;
+    const state = await getSiteStatsState(tenantId);
+    if (!state || !state.tracked) return null;
+    if (state.websiteId) return state.websiteId;
 
-    const label = await getWebsiteLabel(tenantId);
-    if (!label) return null;
-
-    const response = await umamiFetch(config, '/api/websites', { method: 'POST', body: JSON.stringify(label) });
+    const response = await umamiFetch(config, '/api/websites', { method: 'POST', body: JSON.stringify(state.label) });
     if (!response.ok) throw new UmamiError(`Could not create the Umami website (${response.status})`);
     const website = await response.json();
 
     // A concurrent instance may have won: keep its website
-    const saved = await pool.query(
+    const saved = await getPlatformPool().query(
       `insert into ${PLATFORM_SCHEMA}.site_analytics (tenant_id, website_id) values ($1, $2)
        on conflict (tenant_id) do update set tenant_id = excluded.tenant_id
        returning website_id`,
@@ -146,23 +163,26 @@ export async function ensureSiteAnalytics(tenantId: string): Promise<string | nu
 }
 
 /**
- * Bring the site's name and address in Umami up to date, after the site was
- * renamed or its primary domain changed. Sites without a website yet get the
- * current ones when it is created.
+ * Follow a change of the site's name or primary domain: a site that now has
+ * its own address gets its Umami website, one that has a website gets its
+ * name and address updated (its statistics are kept when it loses the
+ * address; its pages just stop reporting).
  */
 export async function syncSiteAnalytics(tenantId: string): Promise<void> {
   const config = getUmamiConfig();
   if (!config) return;
-  const { rows } = await getPlatformPool().query(
-    `select website_id from ${PLATFORM_SCHEMA}.site_analytics where tenant_id = $1`,
-    [tenantId],
-  );
-  const label = rows[0] && await getWebsiteLabel(tenantId);
-  if (!label) return;
+  websiteCache.delete(tenantId);
 
-  const response = await umamiFetch(config, `/api/websites/${rows[0].website_id}`, {
+  const state = await getSiteStatsState(tenantId);
+  if (!state) return;
+  if (!state.websiteId) {
+    if (state.tracked) await ensureSiteAnalytics(tenantId);
+    return;
+  }
+
+  const response = await umamiFetch(config, `/api/websites/${state.websiteId}`, {
     method: 'POST',
-    body: JSON.stringify(label),
+    body: JSON.stringify(state.label),
   });
   if (!response.ok) throw new UmamiError(`Could not update the Umami website (${response.status})`);
 }
@@ -175,9 +195,10 @@ export function syncSiteAnalyticsLater(tenantId: string): void {
 }
 
 /**
- * Website id the site's pages report to, from a short cache. A site without
- * one yet (created before Umami, or while it was down) gets it created in the
- * background and reports from a later request on.
+ * Website id the pages of a tracked site report to, from a short cache; null
+ * for sites without their own address. A tracked site without a website yet
+ * (it got its domain while Umami was down) gets one created in the background
+ * and reports from a later request on.
  */
 export async function getSiteAnalyticsId(tenantId: string): Promise<string | null> {
   if (!getUmamiConfig()) return null;
@@ -185,14 +206,11 @@ export async function getSiteAnalyticsId(tenantId: string): Promise<string | nul
   const cached = websiteCache.get(tenantId);
   if (cached && cached.expiresAt > Date.now()) return cached.websiteId;
 
-  const { rows } = await getPlatformPool().query(
-    `select website_id from ${PLATFORM_SCHEMA}.site_analytics where tenant_id = $1`,
-    [tenantId],
-  );
-  const websiteId: string | null = rows[0]?.website_id ?? null;
+  const state = await getSiteStatsState(tenantId);
+  const websiteId = state?.tracked ? state.websiteId : null;
   websiteCache.set(tenantId, { websiteId, expiresAt: Date.now() + WEBSITE_CACHE_TTL_MS });
 
-  if (!websiteId && (ensureAttempts.get(tenantId) ?? 0) + ENSURE_RETRY_MS < Date.now()) {
+  if (state?.tracked && !websiteId && (ensureAttempts.get(tenantId) ?? 0) + ENSURE_RETRY_MS < Date.now()) {
     ensureAttempts.set(tenantId, Date.now());
     ensureSiteAnalytics(tenantId).catch((error) => {
       console.error('[analytics] Could not create the Umami website:', error);

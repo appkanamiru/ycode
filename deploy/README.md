@@ -82,9 +82,10 @@ the first visit, after asking the app whether the domain is verified.
   and an archive of the `uploads` volume.
 - **Site limit** of an account (default 1):
   `docker compose -p ycode exec postgres psql -U ycode -d ycode -c "update platform.\"user\" set \"siteLimit\" = 3 where email = '...'"`
-- **Statistics**: every site gets an Umami website when it is created (older
-  sites on their next page view); published pages load the tracker from
-  `/_umami/` on their own host. Platform admins (`PLATFORM_ADMIN_EMAILS`)
+- **Statistics**: sites served on their own address (a primary custom
+  domain, or the home site) get an Umami website when they get it; their
+  published pages load the tracker from `/_umami/` on their own host. Sites
+  on a free subdomain are not tracked. Platform admins (`PLATFORM_ADMIN_EMAILS`)
   open Umami signed in from the editor's menu (Statistics); Umami's own
   login is `admin` with `UMAMI_ADMIN_PASSWORD`. Clicks are counted as events
   on elements with a `data-umami-event="name"` attribute.
