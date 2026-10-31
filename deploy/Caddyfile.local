@@ -9,10 +9,26 @@
 	}
 }
 
+# Visitor statistics: the Umami tracker and its collect endpoint on every site
+(umami) {
+	@umami path /_umami/script.js /_umami/api/send
+	handle @umami {
+		uri strip_prefix /_umami
+		reverse_proxy umami:3000
+	}
+}
+
 app.localtest.me, *.localtest.me {
 	tls internal
-	reverse_proxy app:3002 {
-		flush_interval -1
+	@stats host stats.localtest.me
+	handle @stats {
+		reverse_proxy umami:3000
+	}
+	import umami
+	handle {
+		reverse_proxy app:3002 {
+			flush_interval -1
+		}
 	}
 }
 
@@ -21,7 +37,10 @@ https:// {
 	tls {
 		on_demand
 	}
-	reverse_proxy app:3002 {
-		flush_interval -1
+	import umami
+	handle {
+		reverse_proxy app:3002 {
+			flush_interval -1
+		}
 	}
 }

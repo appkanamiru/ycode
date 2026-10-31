@@ -16,6 +16,16 @@
 	}
 }
 
+# Visitor statistics: the Umami tracker and its collect endpoint on every
+# site's own host, so they are first-party requests
+(umami) {
+	@umami path /_umami/script.js /_umami/api/send
+	handle @umami {
+		uri strip_prefix /_umami
+		reverse_proxy umami:3000
+	}
+}
+
 # The editor and the free site subdomains share one wildcard certificate,
 # issued through Cloudflare DNS (deploy/caddy/Dockerfile adds the module).
 # Issuing a certificate per subdomain on demand instead would run into Let's
@@ -26,9 +36,17 @@ builder.appkanamiru.cz, *.appkanamiru.cz {
 		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
 		resolvers 1.1.1.1 1.0.0.1
 	}
-	reverse_proxy app:3002 {
-		# Realtime collaboration streams server-sent events
-		flush_interval -1
+	# The statistics dashboard (UMAMI_PUBLIC_URL)
+	@stats host stats.appkanamiru.cz
+	handle @stats {
+		reverse_proxy umami:3000
+	}
+	import umami
+	handle {
+		reverse_proxy app:3002 {
+			# Realtime collaboration streams server-sent events
+			flush_interval -1
+		}
 	}
 }
 
@@ -39,8 +57,11 @@ appkanamiru.cz, www.appkanamiru.cz {
 		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
 		resolvers 1.1.1.1 1.0.0.1
 	}
-	reverse_proxy app:3002 {
-		flush_interval -1
+	import umami
+	handle {
+		reverse_proxy app:3002 {
+			flush_interval -1
+		}
 	}
 }
 
@@ -49,7 +70,10 @@ https:// {
 	tls {
 		on_demand
 	}
-	reverse_proxy app:3002 {
-		flush_interval -1
+	import umami
+	handle {
+		reverse_proxy app:3002 {
+			flush_interval -1
+		}
 	}
 }

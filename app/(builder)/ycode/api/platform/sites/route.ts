@@ -3,7 +3,7 @@ import { headers } from 'next/headers';
 import { noCache } from '@/lib/api-response';
 import { isMultiTenant } from '@/lib/database/tenancy';
 import { getPlatformAuth } from '@/lib/platform/auth';
-import { getSitesDomain, isPlatformAuth } from '@/lib/platform/config';
+import { getSitesDomain, getUmamiConfig, isPlatformAdmin, isPlatformAuth } from '@/lib/platform/config';
 import { authErrorResponse } from '@/lib/platform/http';
 import { countOwnedSites, DEFAULT_SITE_LIMIT, listSites, validateSiteSlug } from '@/lib/platform/sites';
 import { getSiteGenerator } from '@/lib/ycode-html-comment';
@@ -42,6 +42,8 @@ export async function GET() {
       canCreate: owned < limit,
       sitesDomain: getSitesDomain(),
       generatorName: getSiteGenerator().name,
+      // Platform admins can open the visitor statistics (/ycode/api/platform/stats)
+      stats: Boolean(getUmamiConfig()) && isPlatformAdmin(session.user.email),
     },
   });
 }

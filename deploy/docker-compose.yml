@@ -1,4 +1,5 @@
-# Multi-tenant Ycode platform: app, migrations, Postgres, Redis and Caddy.
+# Multi-tenant Ycode platform: app, migrations, Postgres, Redis, Umami
+# (visitor statistics) and Caddy.
 #
 #   docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
 #
@@ -23,6 +24,11 @@ x-app-environment: &app-environment
   # Named in the generator meta tag and the source comment of published sites
   SITE_GENERATOR_NAME: ${SITE_GENERATOR_NAME:-Appkanamiru}
   SITE_GENERATOR_URL: ${SITE_GENERATOR_URL:-appkanamiru.cz}
+  # Accounts that may open the visitor statistics
+  PLATFORM_ADMIN_EMAILS: ${PLATFORM_ADMIN_EMAILS:-}
+  UMAMI_URL: http://umami:3000
+  UMAMI_PUBLIC_URL: ${UMAMI_PUBLIC_URL:?set UMAMI_PUBLIC_URL (e.g. https://stats.example.com)}
+  UMAMI_ADMIN_PASSWORD: ${UMAMI_ADMIN_PASSWORD:?set UMAMI_ADMIN_PASSWORD}
 
 x-app-image: &app-image
   build:
@@ -79,6 +85,47 @@ services:
       redis:
         condition: service_healthy
 
+  # Creates Umami's database and role in the shared Postgres, then exits
+  umami-db:
+    image: postgres:16.15-alpine
+    restart: "no"
+    environment:
+      PGHOST: postgres
+      PGUSER: ycode
+      PGDATABASE: ycode
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      UMAMI_DB_PASSWORD: ${UMAMI_DB_PASSWORD:?set UMAMI_DB_PASSWORD}
+    command:
+      - sh
+      - -c
+      - |
+        psql -v ON_ERROR_STOP=1 -v pw="$$UMAMI_DB_PASSWORD" <<'SQL'
+        select 'create role umami login' where not exists (select from pg_roles where rolname = 'umami') \gexec
+        alter role umami with login password :'pw';
+        select 'create database umami owner umami' where not exists (select from pg_database where datname = 'umami') \gexec
+        SQL
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Visitor statistics: dashboard on UMAMI_PUBLIC_URL, tracker on every site
+  umami:
+    image: ghcr.io/umami-software/umami:3.4.0
+    restart: unless-stopped
+    init: true
+    environment:
+      DATABASE_URL: postgresql://umami:${UMAMI_DB_PASSWORD:?set UMAMI_DB_PASSWORD}@postgres:5432/umami
+      APP_SECRET: ${UMAMI_APP_SECRET:?set UMAMI_APP_SECRET}
+      DISABLE_TELEMETRY: "1"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:3000/api/heartbeat"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      umami-db:
+        condition: service_completed_successfully
+
   caddy:
     # Caddy with the Cloudflare DNS module, for the wildcard certificate
     build: ./caddy
@@ -97,6 +144,7 @@ services:
       - caddy-config:/config
     depends_on:
       - app
+      - umami
 
 volumes:
   postgres-data:

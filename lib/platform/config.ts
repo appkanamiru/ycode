@@ -50,3 +50,38 @@ export function getInvitationUrl(invitationId: string): string {
   const base = process.env.BETTER_AUTH_URL?.replace(/\/+$/, '') ?? '';
   return `${base}/ycode/accept-invite?invitation=${encodeURIComponent(invitationId)}`;
 }
+
+/** Accounts that run the platform (PLATFORM_ADMIN_EMAILS, comma separated) */
+export function isPlatformAdmin(email: string | null | undefined): boolean {
+  if (!email) return false;
+  const admins = (process.env.PLATFORM_ADMIN_EMAILS ?? '')
+    .split(',')
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+  return admins.includes(email.trim().toLowerCase());
+}
+
+export interface UmamiConfig {
+  /** Where the app reaches Umami, e.g. http://umami:3000 */
+  url: string;
+  /** Where people open Umami, e.g. https://stats.example.com */
+  publicUrl: string;
+  /** Password of Umami's `admin` account, set on first use */
+  adminPassword: string;
+}
+
+/** Visitor statistics through Umami; null when not configured */
+export function getUmamiConfig(): UmamiConfig | null {
+  const url = process.env.UMAMI_URL?.trim().replace(/\/+$/, '');
+  const publicUrl = process.env.UMAMI_PUBLIC_URL?.trim().replace(/\/+$/, '');
+  const adminPassword = process.env.UMAMI_ADMIN_PASSWORD?.trim();
+  if (!url || !publicUrl || !adminPassword) return null;
+  return { url, publicUrl, adminPassword };
+}
+
+/**
+ * Path on every site's own host that Caddy forwards to Umami (the tracker
+ * script and its collect endpoint), so blockers of third-party trackers
+ * and the sites' CSP see a first-party request.
+ */
+export const UMAMI_SITE_PATH = '/_umami';

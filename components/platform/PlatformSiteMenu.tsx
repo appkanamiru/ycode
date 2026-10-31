@@ -55,6 +55,16 @@ export default function PlatformSiteMenu() {
           </DropdownMenuItem>
         </DropdownMenuSubContent>
       </DropdownMenuSub>
+      {data.stats && (
+        <DropdownMenuItem asChild>
+          <a
+            href="/ycode/api/platform/stats" target="_blank"
+            rel="noopener"
+          >
+            Statistics
+          </a>
+        </DropdownMenuItem>
+      )}
       <DropdownMenuSeparator />
     </>
   );

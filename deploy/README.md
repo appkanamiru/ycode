@@ -8,6 +8,7 @@ The platform runs as one Docker Compose stack:
 | `migrate`  | Runs database migrations, tenancy and the platform schema, then exits |
 | `postgres` | All data: sites (per tenant), accounts, organizations, domains |
 | `redis`    | Realtime collaboration between app instances (no persistent data) |
+| `umami`    | Visitor statistics of every site ([Umami](https://umami.is)), its database in `postgres` (created by `umami-db`) |
 | `caddy`    | HTTPS: wildcard certificate for the platform, on-demand certificates for customers' domains |
 
 Uploaded files live in the `uploads` volume, the database in `postgres-data`.
@@ -25,6 +26,8 @@ docker compose --env-file deploy/local.env \
 - Editor: https://app.localtest.me/ycode
 - Sites: https://&lt;slug&gt;.localtest.me (`*.localtest.me` resolves to 127.0.0.1 in public DNS)
 - Email (sign-in codes, invitations): http://localhost:8025
+- Statistics: https://stats.localtest.me (or from the editor's menu, with your
+  email in `PLATFORM_ADMIN_EMAILS` in `deploy/local.env`)
 
 Ports 80 and 443 must be free. Browsers warn about the certificates until you
 trust Caddy's local root certificate:
@@ -79,5 +82,11 @@ the first visit, after asking the app whether the domain is verified.
   and an archive of the `uploads` volume.
 - **Site limit** of an account (default 1):
   `docker compose -p ycode exec postgres psql -U ycode -d ycode -c "update platform.\"user\" set \"siteLimit\" = 3 where email = '...'"`
+- **Statistics**: every site gets an Umami website when it is created (older
+  sites on their next page view); published pages load the tracker from
+  `/_umami/` on their own host. Platform admins (`PLATFORM_ADMIN_EMAILS`)
+  open Umami signed in from the editor's menu (Statistics); Umami's own
+  login is `admin` with `UMAMI_ADMIN_PASSWORD`. Clicks are counted as events
+  on elements with a `data-umami-event="name"` attribute.
 - **Several app instances** (behind a load balancer) need shared file storage
   for `uploads`; Redis already connects their realtime traffic.

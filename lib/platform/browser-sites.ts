@@ -22,6 +22,8 @@ export interface PlatformSites {
   sitesDomain: string | null;
   /** Name in the "Made in …" badge */
   generatorName: string;
+  /** The visitor statistics can be opened (platform admins) */
+  stats: boolean;
 }
 
 /** null when the server is not multi-tenant (or the user is signed out) */
