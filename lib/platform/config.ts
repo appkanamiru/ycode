@@ -30,6 +30,21 @@ export function getSitesDomain(): string | null {
   return process.env.PLATFORM_SITES_DOMAIN?.toLowerCase() || null;
 }
 
+/**
+ * The site served on the sites domain itself (PLATFORM_HOME_SITE, a site
+ * slug): `example.com` shows it and `www.example.com` redirects there.
+ * Without it both redirect to the editor.
+ */
+export function getHomeSiteSlug(): string | null {
+  return process.env.PLATFORM_HOME_SITE?.trim().toLowerCase() || null;
+}
+
+/** The sites domain itself or its www, which the home site is served on */
+export function isSitesApexHost(hostname: string | null): boolean {
+  const sitesDomain = getSitesDomain();
+  return Boolean(sitesDomain && hostname && (hostname === sitesDomain || hostname === `www.${sitesDomain}`));
+}
+
 /** Link in invitation emails: the editor's accept page */
 export function getInvitationUrl(invitationId: string): string {
   const base = process.env.BETTER_AUTH_URL?.replace(/\/+$/, '') ?? '';

@@ -32,13 +32,16 @@ app.appkanamiru.cz, *.appkanamiru.cz {
 	}
 }
 
-# The bare domain and www are not sites: send visitors to the editor
+# The bare domain shows the site set in PLATFORM_HOME_SITE (www redirects
+# to it); without one, the app sends visitors to the editor
 appkanamiru.cz, www.appkanamiru.cz {
 	tls {
 		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
 		resolvers 1.1.1.1 1.0.0.1
 	}
-	redir https://app.appkanamiru.cz/ycode 302
+	reverse_proxy app:3002 {
+		flush_interval -1
+	}
 }
 
 # Customers' own domains

@@ -26,6 +26,8 @@ process.env.PLATFORM_DOMAIN_IPV4 = '203.0.113.10';
 
 const SITE = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
 const SLUG = 'primary-domain-test';
+const HOME = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+const HOME_SLUG = 'primary-home-test';
 
 let ready = false;
 let lib: {
@@ -58,17 +60,17 @@ before(async () => {
   if (!rows[0].t) return;
 
   lib = { domains: require('./domains'), tenants: require('./tenants'), pool };
-  await pool.query('delete from platform.organization where id = $1', [SITE]);
+  await pool.query('delete from platform.organization where id = any($1)', [[SITE, HOME]]);
   await pool.query(
-    `insert into platform.organization (id, name, slug, "createdAt") values ($1, 'Primary test', $2, now())`,
-    [SITE, SLUG],
+    `insert into platform.organization (id, name, slug, "createdAt") values ($1, 'Primary test', $2, now()), ($3, 'Home', $4, now())`,
+    [SITE, SLUG, HOME, HOME_SLUG],
   );
   ready = true;
 });
 
 after(async () => {
   if (!ready) return;
-  await lib.pool.query('delete from platform.organization where id = $1', [SITE]);
+  await lib.pool.query('delete from platform.organization where id = any($1)', [[SITE, HOME]]);
   await lib.pool.end();
 });
 
@@ -116,4 +118,24 @@ test('removing the primary domain stops the redirects', { skip: !DATABASE_URL },
 
   await lib.domains.removeDomain(SITE, id);
   assert.equal(await lib.tenants.resolvePrimaryHost(SITE), null);
+});
+
+test('the home site is served on the sites domain, which its other addresses redirect to', { skip: !DATABASE_URL }, async (t) => {
+  if (!ready) return t.skip('platform schema missing');
+  process.env.PLATFORM_HOME_SITE = HOME_SLUG;
+  try {
+    lib.tenants.forgetHostname('sites.test');
+    lib.tenants.forgetHostname('www.sites.test');
+    assert.equal(await lib.tenants.resolveTenantByHost('sites.test'), HOME);
+    assert.equal(await lib.tenants.resolveTenantByHost('www.sites.test'), HOME);
+    assert.equal(await lib.tenants.resolvePrimaryHost(HOME), 'sites.test');
+    // Other sites are unaffected
+    lib.tenants.forgetPrimaryHost(SITE);
+    assert.equal(await lib.tenants.resolvePrimaryHost(SITE), null);
+  } finally {
+    delete process.env.PLATFORM_HOME_SITE;
+    lib.tenants.forgetHostname('sites.test');
+    lib.tenants.forgetPrimaryHost(HOME);
+  }
+  assert.equal(await lib.tenants.resolveTenantByHost('sites.test'), null);
 });

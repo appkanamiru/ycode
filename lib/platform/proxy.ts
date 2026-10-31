@@ -8,6 +8,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { isMultiTenant } from '@/lib/database/tenancy';
+import { isSitesApexHost } from './config';
 import { findTenantByMcpToken } from './mcp';
 import { getSiteSlug } from './sites';
 import { normalizeHostname, resolveBuilderAccess, resolvePrimaryHost, resolveTenantByHost } from './tenants';
@@ -142,6 +143,10 @@ export async function resolvePlatformRequest(
   }
 
   if (!tenantId && route.publicPage) {
+    // No home site: the sites domain itself leads to the editor
+    if (isSitesApexHost(normalizeHostname(host)) && process.env.BETTER_AUTH_URL) {
+      return { response: NextResponse.redirect(new URL('/ycode', process.env.BETTER_AUTH_URL), 302), tenantId: null };
+    }
     if (isBuilderHost(host)) {
       return { response: NextResponse.redirect(new URL('/ycode', request.url)), tenantId: null };
     }

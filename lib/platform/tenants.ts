@@ -9,7 +9,7 @@
 
 import { resolveRole, type UserRole } from '@/lib/roles';
 import { isMultiTenant } from '@/lib/database/tenancy';
-import { getSitesDomain, PLATFORM_SCHEMA } from './config';
+import { getHomeSiteSlug, getSitesDomain, isSitesApexHost, PLATFORM_SCHEMA } from './config';
 import { getPlatformPool } from './db';
 import { getPlatformAuth } from './auth';
 
@@ -30,6 +30,13 @@ export function normalizeHostname(host: string | null): string | null {
 async function lookupTenantByHostname(hostname: string): Promise<string | null> {
   const pool = getPlatformPool();
   const sitesDomain = getSitesDomain();
+
+  if (isSitesApexHost(hostname)) {
+    const homeSlug = getHomeSiteSlug();
+    if (!homeSlug) return null;
+    const { rows } = await pool.query(`select id from ${PLATFORM_SCHEMA}.organization where slug = $1`, [homeSlug]);
+    return rows[0]?.id ?? null;
+  }
 
   if (sitesDomain && hostname.endsWith(`.${sitesDomain}`)) {
     const slug = hostname.slice(0, -(sitesDomain.length + 1));
@@ -69,18 +76,22 @@ export function forgetPrimaryHost(tenantId: string): void {
 }
 
 /**
- * The custom domain a site's other hostnames redirect to, or null when the
- * site has none set (it is then served on all of them).
+ * The hostname a site's other hostnames redirect to: its primary custom
+ * domain, or the sites domain itself for the home site. Null when the site
+ * has neither (it is then served on all of them).
  */
 export async function resolvePrimaryHost(tenantId: string): Promise<string | null> {
   const cached = primaryHostCache.get(tenantId);
   if (cached && cached.expiresAt > Date.now()) return cached.hostname;
 
   const { rows } = await getPlatformPool().query(
-    `select hostname from ${PLATFORM_SCHEMA}.domains where tenant_id = $1 and is_primary and verified_at is not null`,
+    `select o.slug, d.hostname from ${PLATFORM_SCHEMA}.organization o
+     left join ${PLATFORM_SCHEMA}.domains d on d.tenant_id = o.id and d.is_primary and d.verified_at is not null
+     where o.id = $1`,
     [tenantId],
   );
-  const hostname: string | null = rows[0]?.hostname ?? null;
+  const isHomeSite = Boolean(rows[0]) && rows[0].slug === getHomeSiteSlug();
+  const hostname: string | null = rows[0]?.hostname ?? (isHomeSite ? getSitesDomain() : null);
   primaryHostCache.set(tenantId, { hostname, expiresAt: Date.now() + HOST_CACHE_TTL_MS });
   return hostname;
 }

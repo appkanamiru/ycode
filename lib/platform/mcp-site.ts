@@ -7,7 +7,7 @@
 import type { CreateMcpServerOptions } from '@/lib/mcp/server';
 import { isMultiTenant } from '@/lib/database/tenancy';
 import { getTenantIdFromHeaders } from '@/lib/supabase-server';
-import { getSitesDomain, PLATFORM_SCHEMA } from './config';
+import { getHomeSiteSlug, getSitesDomain, PLATFORM_SCHEMA } from './config';
 import { getPlatformPool } from './db';
 
 /**
@@ -32,7 +32,8 @@ export async function getMcpSiteOptions(): Promise<CreateMcpServerOptions | unde
   if (!site) return undefined;
 
   const sitesDomain = getSitesDomain();
-  const addresses = [...site.domains, ...(sitesDomain ? [`${site.slug}.${sitesDomain}`] : [])]
+  const home = sitesDomain && site.slug === getHomeSiteSlug() ? [sitesDomain] : [];
+  const addresses = [...home, ...site.domains, ...(sitesDomain ? [`${site.slug}.${sitesDomain}`] : [])]
     .map((hostname) => `https://${hostname}`);
 
   return {
