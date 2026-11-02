@@ -5,7 +5,7 @@
  * across pages, components, and other collections (reference fields).
  */
 
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { getConnections as getAirtableConnections } from '@/lib/apps/airtable/sync-service';
 import { GRID_SPAN_BINDING_KEYS } from '@/lib/grid-span-binding-utils';
 import type { Layer, CollectionVariable, FieldVariable, DesignColorVariable } from '@/types';
@@ -210,7 +210,7 @@ function layersReferenceField(layers: Layer[], fieldId: string): boolean {
  * Get collection usage across pages, components, and reference fields
  */
 export async function getCollectionUsage(collectionId: string): Promise<CollectionUsageResult> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) throw new Error('Supabase not configured');
 
   const pages: UsageEntry[] = [];
@@ -338,7 +338,7 @@ export async function getCollectionUsage(collectionId: string): Promise<Collecti
  * Get collection field usage across pages and components (layer bindings)
  */
 export async function getCollectionFieldUsage(fieldId: string): Promise<CollectionFieldUsageResult> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) throw new Error('Supabase not configured');
 
   const pages: UsageEntry[] = [];

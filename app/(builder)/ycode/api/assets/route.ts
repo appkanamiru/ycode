@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAllAssets, getAssetsPaginated, createAsset } from '@/lib/repositories/assetRepository';
 import { uploadFile, cleanSvgContent, isValidSvg } from '@/lib/file-upload';
 import { noCache } from '@/lib/api-response';
+import { reportAssetEvent } from '@/lib/services/siteEvents';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -108,6 +109,7 @@ export async function POST(request: NextRequest) {
         asset_folder_id: asset_folder_id || null,
         content: cleanedContent,
       });
+      void reportAssetEvent('uploaded', asset);
 
       return noCache({
         data: asset,
@@ -143,6 +145,7 @@ export async function POST(request: NextRequest) {
         500
       );
     }
+    void reportAssetEvent('uploaded', asset);
 
     return noCache({
       data: asset,

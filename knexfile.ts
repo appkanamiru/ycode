@@ -41,6 +41,11 @@ const createConfig = (): Knex.Config => {
   return {
     client: 'pg',
     connection: async () => {
+      // Plain Postgres (see lib/database/pg-client) instead of Supabase
+      if (process.env.YCODE_DB_DRIVER === 'postgres' && process.env.DATABASE_URL) {
+        return { connectionString: process.env.DATABASE_URL };
+      }
+
       const connectionParams = await getSupabaseConnectionParams();
 
       return connectionParams;

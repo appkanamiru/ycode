@@ -2,6 +2,7 @@
 
 import { SelectItem, SelectSeparator } from '@/components/ui/select';
 import type { CollectionItemWithValues, CollectionField } from '@/types';
+import { findDisplayField } from '@/lib/collection-field-utils';
 import type { ReferenceItemOption } from '@/lib/collection-field-utils';
 import { COLLECTION_ITEM_KEYWORDS } from '@/lib/link-utils';
 
@@ -27,21 +28,23 @@ interface CollectionItemSelectOptionsProps {
 }
 
 /**
- * Resolve a CMS item's display label using its `name` field, then an optional
- * `slug` field, then the first stored value, then the raw id. Exported so the
- * link selectors can render the trigger label even when the selected item is
- * filtered out of the visible list.
+ * Resolve a CMS item's display label using the collection's display field
+ * (`title`, `name`, first text field), then an optional `slug` field, then the
+ * raw id. Exported so the link selectors can render the trigger label even when
+ * the selected item is filtered out of the visible list.
  */
 export function getCollectionItemDisplayName(
   item: CollectionItemWithValues,
   collectionFields: CollectionField[],
   slugFieldId?: string | null
 ): string {
-  const nameField = collectionFields.find(f => f.key === 'name');
-  if (nameField && item.values[nameField.id]) return item.values[nameField.id];
-  if (slugFieldId && item.values[slugFieldId]) return item.values[slugFieldId];
-  const values = Object.values(item.values);
-  return values[0] || item.id;
+  const candidateFieldIds = [findDisplayField(collectionFields)?.id, slugFieldId];
+  for (const fieldId of candidateFieldIds) {
+    const value: unknown = fieldId ? item.values[fieldId] : undefined;
+    // Rich-text values arrive as parsed TipTap JSON despite the string type
+    if (typeof value === 'string' && value.trim()) return value;
+  }
+  return item.id;
 }
 
 /**

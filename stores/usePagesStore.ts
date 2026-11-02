@@ -5,6 +5,8 @@ import type { Layer, LayerStyle, Page, PageLayers, PageFolder, PageItemDuplicate
 import { pagesApi, pageLayersApi, foldersApi } from '../lib/api';
 import { getStatusFlagsFromAction, type StatusAction } from '../lib/collection-field-utils';
 import { getLayerFromTemplate, getBlockName } from '../lib/templates/blocks';
+import { localizeTemplateTexts } from '../lib/templates/localize';
+import { useLocalisationStore } from './useLocalisationStore';
 import { cloneDeep } from 'lodash';
 import {
   canHaveChildren,
@@ -683,7 +685,7 @@ export const usePagesStore = create<PagesStore>((set, get) => ({
     }
 
     // Get the template and block info
-    const template = getLayerFromTemplate(templateId);
+    const template = localizeTemplateTexts(getLayerFromTemplate(templateId), useLocalisationStore.getState().defaultLocale?.code);
     if (!template) {
       console.error(`Template ${templateId} not found`);
       return null;

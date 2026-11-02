@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
+import { getSupabaseStorage } from '@/lib/supabase-storage';
 import { validateCategoryMimeType } from '@/lib/asset-utils';
 import { STORAGE_BUCKET, MAX_UPLOAD_FILE_SIZE, generateStoragePath } from '@/lib/asset-constants';
 
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = await getSupabaseAdmin();
+    const supabase = await getDbClient();
 
     if (!supabase) {
       return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
 
     const storagePath = generateStoragePath(filename);
 
-    const { data, error } = await supabase.storage
+    const { data, error } = await (await getSupabaseStorage())
       .from(STORAGE_BUCKET)
       .createSignedUploadUrl(storagePath);
 

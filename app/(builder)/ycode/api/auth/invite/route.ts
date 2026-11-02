@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { noCache } from '@/lib/api-response';
+import { isPlatformAuth } from '@/lib/platform/config';
+import { handleTeamInvite } from '@/lib/platform/team';
 import { requireManageMembers } from '@/lib/roles-server';
 import { ASSIGNABLE_ROLES } from '@/lib/roles';
 
@@ -11,6 +13,8 @@ import { ASSIGNABLE_ROLES } from '@/lib/roles';
  * Requires owner or admin role.
  */
 export async function POST(request: NextRequest) {
+  if (isPlatformAuth()) return handleTeamInvite(request);
+
   try {
     const result = await requireManageMembers();
     if ('status' in result) return result;

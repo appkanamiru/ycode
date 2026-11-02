@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { randomBytes } from 'crypto';
 
 /**
@@ -35,7 +35,7 @@ function generateCode(): string {
 }
 
 export async function createCode(data: CreateCodeData): Promise<string> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -71,7 +71,7 @@ export async function createCode(data: CreateCodeData): Promise<string> {
  * or never existed.
  */
 export async function consumeCode(code: string): Promise<McpOAuthCode | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -100,7 +100,7 @@ export async function consumeCode(code: string): Promise<McpOAuthCode | null> {
  * we only schedule it occasionally to avoid load.
  */
 export async function cleanupExpired(): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     return;

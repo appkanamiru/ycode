@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getValuesByItemId } from '@/lib/repositories/collectionItemValueRepository';
 import { setValuesByFieldName } from '@/lib/repositories/collectionItemValueRepository';
 import { noCache } from '@/lib/api-response';
+import { reportCollectionItemChanged } from '@/lib/services/siteEvents';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -55,6 +56,8 @@ export async function PUT(
       {},
       false // Update draft values
     );
+
+    void reportCollectionItemChanged('updated', id, item_id);
 
     // Get updated draft values
     const values = await getValuesByItemId(item_id, false);

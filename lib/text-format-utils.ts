@@ -2,6 +2,7 @@ import React from 'react';
 import type { TextStyle, DynamicRichTextVariable, LinkSettings, Component } from '@/types';
 import { cn } from '@/lib/utils';
 import { formatFieldValue, resolveFieldFromSources } from '@/lib/cms-variables-utils';
+import { DEFAULT_VALUE_FORMAT, type ValueFormat } from '@/lib/value-format';
 import { generateLinkHref, type LinkResolutionContext } from '@/lib/link-utils';
 import { contentHasBlockElements, hasBlockElementsWithResolver } from '@/lib/tiptap-utils';
 import { applyComponentOverrides, resolveComponents } from '@/lib/resolve-components';
@@ -436,16 +437,16 @@ function getVariableNodeData(
  * @param node - TipTap dynamicVariable node
  * @param collectionItemData - Data from collection layer items
  * @param pageCollectionItemData - Data from page collection (dynamic pages)
- * @param timezone - Timezone for formatting date values
+ * @param valueFormat - Timezone and language for formatting date and number values
  */
 function resolveVariableNode(
   node: any,
   collectionItemData?: Record<string, string>,
   pageCollectionItemData?: Record<string, string>,
-  timezone: string = 'UTC'
+  valueFormat: ValueFormat = DEFAULT_VALUE_FORMAT
 ): string {
   const { fieldType, rawValue, format } = getVariableNodeData(node, collectionItemData, pageCollectionItemData);
-  return formatFieldValue(rawValue, fieldType, timezone, format);
+  return formatFieldValue(rawValue, fieldType, valueFormat.timezone, format, valueFormat.locale);
 }
 
 /**
@@ -594,7 +595,7 @@ function renderNestedRichTextContent(
   textStyles?: Record<string, TextStyle>,
   isEditMode = false,
   linkContext?: RichTextLinkContext,
-  timezone: string = 'UTC',
+  valueFormat: ValueFormat = DEFAULT_VALUE_FORMAT,
   layerDataMap?: Record<string, Record<string, string>>,
   components?: Component[],
   renderComponentBlock?: RenderComponentBlockFn,
@@ -620,7 +621,7 @@ function renderNestedRichTextContent(
 
   if (parsed.type === 'doc' && Array.isArray(parsed.content)) {
     return parsed.content.map((block: any, blockIdx: number) =>
-      renderBlock(block, blockIdx, collectionItemData, pageCollectionItemData, textStyles, useSpanForParagraphs, isEditMode, linkContext, timezone, layerDataMap, components, renderComponentBlock, ancestorComponentIds)
+      renderBlock(block, blockIdx, collectionItemData, pageCollectionItemData, textStyles, useSpanForParagraphs, isEditMode, linkContext, valueFormat, layerDataMap, components, renderComponentBlock, ancestorComponentIds)
     ).filter(Boolean);
   }
 
@@ -637,7 +638,7 @@ function renderInlineContent(
   textStyles?: Record<string, TextStyle>,
   isEditMode = false,
   linkContext?: RichTextLinkContext,
-  timezone: string = 'UTC',
+  valueFormat: ValueFormat = DEFAULT_VALUE_FORMAT,
   layerDataMap?: Record<string, Record<string, string>>,
   components?: Component[],
   renderComponentBlock?: RenderComponentBlockFn,
@@ -673,7 +674,7 @@ function renderInlineContent(
             textStyles,
             isEditMode,
             linkContext,
-            timezone,
+            valueFormat,
             layerDataMap,
             components,
             renderComponentBlock,
@@ -684,7 +685,7 @@ function renderInlineContent(
       }
 
       // For other field types, render as text with optional format
-      const value = formatFieldValue(rawValue, fieldType, timezone, format);
+      const value = formatFieldValue(rawValue, fieldType, valueFormat.timezone, format, valueFormat.locale);
       const textNode = {
         type: 'text',
         text: value,
@@ -749,7 +750,7 @@ function renderInlineContent(
         listProps['data-style'] = node.type;
       }
       const items = node.content?.map((item: any, itemIdx: number) =>
-        renderListItem(item, `${key}-${itemIdx}`, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone, layerDataMap, components, renderComponentBlock, ancestorComponentIds, itemIdx)
+        renderListItem(item, `${key}-${itemIdx}`, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, valueFormat, layerDataMap, components, renderComponentBlock, ancestorComponentIds, itemIdx)
       ) || [];
       return [React.createElement(tag, listProps, ...items)];
     }
@@ -852,7 +853,7 @@ function renderBlock(
   useSpanForParagraphs = false,
   isEditMode = false,
   linkContext?: RichTextLinkContext,
-  timezone: string = 'UTC',
+  valueFormat: ValueFormat = DEFAULT_VALUE_FORMAT,
   layerDataMap?: Record<string, Record<string, string>>,
   components?: Component[],
   renderComponentBlock?: RenderComponentBlockFn,
@@ -884,7 +885,7 @@ function renderBlock(
     );
     const tag = hasBlockContent ? 'div' : useSpanForParagraphs ? 'span' : 'p';
 
-    return React.createElement(tag, paragraphProps, ...renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone, layerDataMap, components, renderComponentBlock, ancestorComponentIds, useSpanForParagraphs));
+    return React.createElement(tag, paragraphProps, ...renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, valueFormat, layerDataMap, components, renderComponentBlock, ancestorComponentIds, useSpanForParagraphs));
   }
 
   if (block.type === 'heading') {
@@ -903,7 +904,7 @@ function renderBlock(
     if (isEditMode) {
       headingProps['data-style'] = styleKey;
     }
-    return React.createElement(tag, headingProps, ...renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone, layerDataMap, components, renderComponentBlock, ancestorComponentIds, useSpanForParagraphs));
+    return React.createElement(tag, headingProps, ...renderInlineContent(block.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, valueFormat, layerDataMap, components, renderComponentBlock, ancestorComponentIds, useSpanForParagraphs));
   }
 
   if (block.type === 'bulletList') {
@@ -918,7 +919,7 @@ function renderBlock(
       'ul',
       ulProps,
       block.content?.map((item: any, itemIdx: number) =>
-        renderListItem(item, `${key}-${itemIdx}`, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone, layerDataMap, components, renderComponentBlock, ancestorComponentIds, itemIdx)
+        renderListItem(item, `${key}-${itemIdx}`, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, valueFormat, layerDataMap, components, renderComponentBlock, ancestorComponentIds, itemIdx)
       )
     );
   }
@@ -935,7 +936,7 @@ function renderBlock(
       'ol',
       olProps,
       block.content?.map((item: any, itemIdx: number) =>
-        renderListItem(item, `${key}-${itemIdx}`, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone, layerDataMap, components, renderComponentBlock, ancestorComponentIds, itemIdx)
+        renderListItem(item, `${key}-${itemIdx}`, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, valueFormat, layerDataMap, components, renderComponentBlock, ancestorComponentIds, itemIdx)
       )
     );
   }
@@ -952,7 +953,7 @@ function renderBlock(
       'blockquote',
       bqProps,
       block.content?.map((child: any, childIdx: number) =>
-        renderBlock(child, childIdx, collectionItemData, pageCollectionItemData, textStyles, useSpanForParagraphs, isEditMode, linkContext, timezone, layerDataMap, components, renderComponentBlock, ancestorComponentIds, true)
+        renderBlock(child, childIdx, collectionItemData, pageCollectionItemData, textStyles, useSpanForParagraphs, isEditMode, linkContext, valueFormat, layerDataMap, components, renderComponentBlock, ancestorComponentIds, true)
       )
     );
   }
@@ -1004,7 +1005,7 @@ function renderBlock(
 
   if (block.type === 'table') {
     const rows = (block.content || []).map((row: any, rowIdx: number) =>
-      renderTableNode(row, `${key}-row-${rowIdx}`, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone, layerDataMap, components, renderComponentBlock, ancestorComponentIds, rowIdx)
+      renderTableNode(row, `${key}-row-${rowIdx}`, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, valueFormat, layerDataMap, components, renderComponentBlock, ancestorComponentIds, rowIdx)
     );
 
     const tbodyProps: Record<string, any> = { key: `${key}-tbody` };
@@ -1044,7 +1045,7 @@ function renderTableNode(
   textStyles?: Record<string, TextStyle>,
   isEditMode = false,
   linkContext?: RichTextLinkContext,
-  timezone: string = 'UTC',
+  valueFormat: ValueFormat = DEFAULT_VALUE_FORMAT,
   layerDataMap?: Record<string, Record<string, string>>,
   components?: Component[],
   renderComponentBlock?: RenderComponentBlockFn,
@@ -1058,9 +1059,9 @@ function renderTableNode(
 
   const children = (node.content || []).map((child: any, idx: number) => {
     if (child.type === 'tableRow' || child.type === 'tableCell' || child.type === 'tableHeader') {
-      return renderTableNode(child, `${key}-${idx}`, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone, layerDataMap, components, renderComponentBlock, ancestorComponentIds, idx, rowIdx);
+      return renderTableNode(child, `${key}-${idx}`, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, valueFormat, layerDataMap, components, renderComponentBlock, ancestorComponentIds, idx, rowIdx);
     }
-    return renderBlock(child, idx, collectionItemData, pageCollectionItemData, textStyles, false, isEditMode, linkContext, timezone, layerDataMap, components, renderComponentBlock, ancestorComponentIds, true);
+    return renderBlock(child, idx, collectionItemData, pageCollectionItemData, textStyles, false, isEditMode, linkContext, valueFormat, layerDataMap, components, renderComponentBlock, ancestorComponentIds, true);
   });
 
   const tagMap: Record<string, string> = {
@@ -1111,7 +1112,7 @@ function renderListItem(
   textStyles?: Record<string, TextStyle>,
   isEditMode = false,
   linkContext?: RichTextLinkContext,
-  timezone: string = 'UTC',
+  valueFormat: ValueFormat = DEFAULT_VALUE_FORMAT,
   layerDataMap?: Record<string, Record<string, string>>,
   components?: Component[],
   renderComponentBlock?: RenderComponentBlockFn,
@@ -1122,9 +1123,9 @@ function renderListItem(
 
   const children = item.content?.flatMap((block: any, idx: number) => {
     if (block.type === 'paragraph') {
-      return renderInlineContent(block.content || [], collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone, layerDataMap, components, renderComponentBlock, ancestorComponentIds);
+      return renderInlineContent(block.content || [], collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, valueFormat, layerDataMap, components, renderComponentBlock, ancestorComponentIds);
     }
-    return renderBlock(block, idx, collectionItemData, pageCollectionItemData, textStyles, false, isEditMode, linkContext, timezone, layerDataMap, components, renderComponentBlock, ancestorComponentIds);
+    return renderBlock(block, idx, collectionItemData, pageCollectionItemData, textStyles, false, isEditMode, linkContext, valueFormat, layerDataMap, components, renderComponentBlock, ancestorComponentIds);
   });
 
   const liProps: Record<string, any> = {
@@ -1184,7 +1185,7 @@ export function hasBlockElementsWithInlineVariables(
  * @param useSpanForParagraphs - If true, renders paragraphs as <span class="block"> instead of <p>
  * @param isEditMode - If true, adds data-style attributes for style selection on canvas
  * @param linkContext - Context for resolving page/asset/field links
- * @param timezone - Timezone for formatting date values
+ * @param valueFormat - Timezone and language for formatting date and number values
  * @param layerDataMap - Map of layer ID → item data for layer-specific resolution
  * @param components - Available components for resolving embedded component nodes
  * @param renderComponentBlock - Callback to render a resolved component block
@@ -1197,7 +1198,7 @@ export function renderRichText(
   useSpanForParagraphs = false,
   isEditMode = false,
   linkContext?: RichTextLinkContext,
-  timezone: string = 'UTC',
+  valueFormat: ValueFormat = DEFAULT_VALUE_FORMAT,
   layerDataMap?: Record<string, Record<string, string>>,
   components?: Component[],
   renderComponentBlock?: RenderComponentBlockFn,
@@ -1230,7 +1231,7 @@ export function renderRichText(
 
     if (hasSoleRichTextVariable) {
       const nestedUseSpans = isSimpleTextElement ? true : useSpanForParagraphs;
-      const inlineContent = renderInlineContent(paragraph.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone, layerDataMap, components, renderComponentBlock, ancestorComponentIds, nestedUseSpans);
+      const inlineContent = renderInlineContent(paragraph.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, valueFormat, layerDataMap, components, renderComponentBlock, ancestorComponentIds, nestedUseSpans);
       return Array.isArray(inlineContent) ? inlineContent : [inlineContent];
     }
 
@@ -1241,7 +1242,7 @@ export function renderRichText(
       }
       return null;
     }
-    const inlineContent = renderInlineContent(paragraph.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, timezone, layerDataMap, components, renderComponentBlock, ancestorComponentIds, useSpanForParagraphs);
+    const inlineContent = renderInlineContent(paragraph.content, collectionItemData, pageCollectionItemData, textStyles, isEditMode, linkContext, valueFormat, layerDataMap, components, renderComponentBlock, ancestorComponentIds, useSpanForParagraphs);
     if (!isSimpleTextElement) {
       // Wrap so inline nodes (text + <strong>, etc.) form a single flow unit.
       // Without this, a parent with `flex flex-col` turns each text node /
@@ -1261,7 +1262,7 @@ export function renderRichText(
 
   let visibleBlockIdx = 0;
   return doc.content.map((block: any, idx: number) => {
-    const element = renderBlock(block, idx, collectionItemData, pageCollectionItemData, textStyles, useSpanForParagraphs, isEditMode, linkContext, timezone, layerDataMap, components, renderComponentBlock, ancestorComponentIds);
+    const element = renderBlock(block, idx, collectionItemData, pageCollectionItemData, textStyles, useSpanForParagraphs, isEditMode, linkContext, valueFormat, layerDataMap, components, renderComponentBlock, ancestorComponentIds);
     const isVisibleBlock = block.type !== 'paragraph' || block.content?.length;
     // Embedded component blocks render as a React.Fragment, which only accepts
     // `key`/`children` — cloning to inject `data-block-index` would throw.

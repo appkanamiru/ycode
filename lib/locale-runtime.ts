@@ -58,7 +58,29 @@ export function hasValidTranslationValue(translation: Translation | undefined): 
   if (!translation || !translation.is_completed) {
     return false;
   }
-  return !!(translation.content_value && translation.content_value.trim() !== '');
+  return hasTextValue(translation.content_value);
+}
+
+/**
+ * Whether a translation value has content. Rich text is stored as a JSON doc,
+ * so a doc without any text (an empty paragraph left by starting a
+ * translation) counts as empty, and the original text shows instead.
+ */
+function hasTextValue(value: string | null | undefined): value is string {
+  if (!value || value.trim() === '') return false;
+  if (!value.startsWith('{"type":"doc"')) return true;
+  try {
+    return docHasContent(JSON.parse(value));
+  } catch {
+    return true;
+  }
+}
+
+function docHasContent(node: { type?: string; text?: string; content?: unknown[] }): boolean {
+  if (typeof node.text === 'string' && node.text.trim() !== '') return true;
+  // Inline nodes without text (images, variables, line breaks) are content too
+  if (node.type && !['doc', 'paragraph', 'text', 'hardBreak'].includes(node.type) && !node.content) return true;
+  return (node.content ?? []).some((child) => docHasContent(child as typeof node));
 }
 
 /**
@@ -73,7 +95,7 @@ export function getTranslationValue(
   if (!translation) return undefined;
   if (options?.includeIncomplete) {
     const value = translation.content_value;
-    return value && value.trim() !== '' ? value : undefined;
+    return hasTextValue(value) ? value : undefined;
   }
   if (hasValidTranslationValue(translation)) {
     return translation.content_value;

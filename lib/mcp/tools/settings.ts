@@ -1,10 +1,25 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { isAgentSecretSettingKey } from '@/lib/agent/config';
+import { isMultiTenant } from '@/lib/database/tenancy';
 import { getAllSettings, getSettingByKey, setSetting, setSettings } from '@/lib/repositories/settingsRepository';
 
 /** Large generated values left out of the "all settings" listing unless asked for by key. */
 const LARGE_SETTING_KEYS = new Set(['draft_css', 'published_css']);
+
+/** On the platform the badge shows until the site has its own domain; it is not a setting */
+const PLATFORM_BADGE_ERROR = 'ycode_badge cannot be changed on this platform: the "Made in" badge shows until the site is served on its own domain, and disappears once a verified custom domain is made primary.';
+
+function getSettingKeysDoc(): string {
+  const badgeDoc = isMultiTenant()
+    ? '- ycode_badge: read-only here; the badge shows until a verified custom domain is primary'
+    : '- ycode_badge: boolean, show the Ycode badge on the published site';
+  return SETTING_KEYS_DOC.replace('{{ycode_badge}}', badgeDoc);
+}
+
+function badgeChangeError() {
+  return { content: [{ type: 'text' as const, text: `Error: ${PLATFORM_BADGE_ERROR}` }], isError: true };
+}
 
 const SETTING_KEYS_DOC = `Supported keys (the same ones Settings > General writes):
 - site_name: string
@@ -15,7 +30,7 @@ const SETTING_KEYS_DOC = `Supported keys (the same ones Settings > General write
 - ga_measurement_id: Google Analytics ID, e.g. "G-XXXXXXX"
 - google_site_verification: Search Console verification token
 - robots_txt, llms_txt, security_txt: file contents
-- ycode_badge: boolean, show the Ycode badge on the published site
+{{ycode_badge}}
 - timezone: IANA timezone, e.g. "Europe/Vilnius"
 Redirects are managed with the redirect tools, not here.`;
 
@@ -31,7 +46,7 @@ export function registerSettingsTools(server: McpServer) {
     'get_settings',
     `Get all site settings or a specific setting by key. The full listing omits the large generated draft_css and published_css values — request them by key if needed.
 
-${SETTING_KEYS_DOC}`,
+${getSettingKeysDoc()}`,
     {
       key: z.string().optional().describe('Specific setting key to retrieve. Omit to get all settings.'),
     },
@@ -65,12 +80,13 @@ ${SETTING_KEYS_DOC}`,
     'set_setting',
     `Set a site setting value. Creates the setting if it does not exist, updates it otherwise. To set the favicon, upload the image with upload_asset and set favicon_asset_id to the returned asset ID.
 
-${SETTING_KEYS_DOC}`,
+${getSettingKeysDoc()}`,
     {
       key: z.string().describe('Setting key (e.g. "site_name", "favicon_asset_id")'),
       value: settingValueSchema.describe('Setting value (string, number, boolean, or object)'),
     },
     async ({ key, value }) => {
+      if (key === 'ycode_badge' && isMultiTenant()) return badgeChangeError();
       const setting = await setSetting(key, value);
       return {
         content: [{
@@ -88,6 +104,7 @@ ${SETTING_KEYS_DOC}`,
       settings: z.record(z.string(), settingValueSchema.nullable()).describe('Object of key-value pairs to set. Use null to delete a key.'),
     },
     async ({ settings }) => {
+      if ('ycode_badge' in settings && isMultiTenant()) return badgeChangeError();
       const count = await setSettings(settings);
       return {
         content: [{

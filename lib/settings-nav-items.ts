@@ -7,6 +7,8 @@ export interface SettingsNavItem {
   id: string;
   label: string;
   path: string;
+  /** Hidden in multi-tenant mode, where it concerns the whole platform */
+  singleSiteOnly?: boolean;
 }
 
 export const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
@@ -16,6 +18,6 @@ export const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
   { id: 'redirects', label: 'Redirects', path: '/ycode/settings/redirects' },
   { id: 'security', label: 'Security', path: '/ycode/settings/security' },
   { id: 'email', label: 'Email', path: '/ycode/settings/email' },
-  { id: 'templates', label: 'Templates', path: '/ycode/settings/templates' },
-  { id: 'updates', label: 'Updates', path: '/ycode/settings/updates' },
+  { id: 'templates', label: 'Templates', path: '/ycode/settings/templates', singleSiteOnly: true },
+  { id: 'updates', label: 'Updates', path: '/ycode/settings/updates', singleSiteOnly: true },
 ];

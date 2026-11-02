@@ -1,5 +1,7 @@
 import type { NextRequest } from 'next/server';
 
+import { isMultiTenant } from '@/lib/database/tenancy';
+
 /**
  * Shared helpers for building absolute URLs in OAuth metadata documents.
  *
@@ -13,6 +15,18 @@ export function getBaseUrl(request: NextRequest | Request): string {
   const forwardedProto = request.headers.get('x-forwarded-proto');
   const protocol = forwardedProto || (host.startsWith('localhost') ? 'http' : 'https');
   return `${protocol}://${host}`;
+}
+
+/**
+ * The authorization server MCP clients sign in with. Multi-tenant, sites are
+ * also MCP resources on their own hosts, but sign-in and consent stay on the
+ * editor's host (BETTER_AUTH_URL), where the session is.
+ */
+export function getAuthorizationServerUrl(request: NextRequest | Request): string {
+  if (isMultiTenant() && process.env.BETTER_AUTH_URL) {
+    return new URL(process.env.BETTER_AUTH_URL).origin;
+  }
+  return getBaseUrl(request);
 }
 
 export function jsonMetadataResponse(payload: Record<string, unknown>): Response {

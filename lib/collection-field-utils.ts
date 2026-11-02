@@ -14,12 +14,34 @@ import type {
   CollectionFieldType,
   CollectionItemWithValues,
   CollectionVariable,
+  CreateCollectionFieldData,
   GlobalVariable,
   Layer,
   VisibilityOperator,
 } from '@/types';
 import { ASSET_CATEGORIES, isAssetOfType } from '@/lib/asset-utils';
 import { findAllParentCollectionLayers, findLayerById, getCollectionVariable } from '@/lib/layer-utils';
+
+export type BuiltInFieldDefinition = Omit<CreateCollectionFieldData, 'collection_id' | 'order' | 'is_published'> & { key: string };
+
+/** Built-in fields placed before a collection's custom fields */
+export const BUILT_IN_FIELDS_START: BuiltInFieldDefinition[] = [
+  { name: 'ID', key: 'id', type: 'number', fillable: false, hidden: false },
+  { name: 'Status', key: 'status', type: 'status', fillable: false, hidden: false, is_computed: true },
+  { name: 'Name', key: 'name', type: 'text', fillable: true, hidden: false },
+  { name: 'Slug', key: 'slug', type: 'text', fillable: true, hidden: false },
+];
+
+/** Built-in fields placed after a collection's custom fields */
+export const BUILT_IN_FIELDS_END: BuiltInFieldDefinition[] = [
+  { name: 'Created Date', key: 'created_at', type: 'date', fillable: false, hidden: false },
+  { name: 'Updated Date', key: 'updated_at', type: 'date', fillable: false, hidden: false },
+];
+
+/** The fields a new, empty collection starts with, in order */
+export function getNewCollectionFields(): Array<BuiltInFieldDefinition & { order: number }> {
+  return [...BUILT_IN_FIELDS_START, ...BUILT_IN_FIELDS_END].map((field, order) => ({ ...field, order }));
+}
 
 // =============================================================================
 // Field Types Configuration

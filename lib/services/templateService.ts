@@ -1,9 +1,12 @@
 import { getKnexClient, closeKnexClient, testKnexConnection } from '../knex-client';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
+import { getSupabaseStorage } from '@/lib/supabase-storage';
 import { STORAGE_BUCKET, STORAGE_FOLDERS } from '@/lib/asset-constants';
 import { migrations } from '../migrations-loader';
 import { guardKnexForMigrationReplay } from '@/lib/migration-replay-guard';
 import { YCODE_EXTERNAL_API_URL } from '@/lib/config';
+import { multiTenantRestriction } from '@/lib/database/tenancy';
+import { fetchStoredFile } from '@/lib/storage/filesystem-storage';
 
 /**
  * Tables to truncate when applying a template.
@@ -125,7 +128,7 @@ export async function getTemplate(id: string): Promise<TemplateDetails | null> {
  * @param knex - Knex transaction or client
  */
 async function copyTemplateAssetsToUserStorage(knex: ReturnType<typeof getKnexClient> extends Promise<infer T> ? T : never): Promise<void> {
-  const supabase = await getSupabaseAdmin();
+  const supabase = await getDbClient();
   if (!supabase) {
     console.warn('[copyTemplateAssets] Supabase not configured, skipping asset copy');
     return;
@@ -150,7 +153,7 @@ async function copyTemplateAssetsToUserStorage(knex: ReturnType<typeof getKnexCl
 
       let response: Response;
       try {
-        response = await fetch(asset.public_url, { signal: controller.signal });
+        response = await fetchStoredFile(asset.public_url, { signal: controller.signal });
       } catch (fetchErr) {
         clearTimeout(timeout);
         console.warn(`[copyTemplateAssets] Failed to fetch ${asset.filename}:`, fetchErr);
@@ -173,7 +176,7 @@ async function copyTemplateAssetsToUserStorage(knex: ReturnType<typeof getKnexCl
       const storagePath = `${STORAGE_FOLDERS.WEBSITE}/${timestamp}-${random}.${extension}`;
 
       // Upload to user's storage
-      const { data, error } = await supabase.storage
+      const { data, error } = await (await getSupabaseStorage())
         .from(STORAGE_BUCKET)
         .upload(storagePath, buffer, {
           contentType: asset.mime_type || 'application/octet-stream',
@@ -187,7 +190,7 @@ async function copyTemplateAssetsToUserStorage(knex: ReturnType<typeof getKnexCl
       }
 
       // Get new public URL
-      const { data: urlData } = supabase.storage
+      const { data: urlData } = (await getSupabaseStorage())
         .from(STORAGE_BUCKET)
         .getPublicUrl(data.path);
 
@@ -239,7 +242,7 @@ async function copyTemplateAssetsToUserStorage(knex: ReturnType<typeof getKnexCl
         const extension = font.kind || 'woff2';
         const storagePath = `${STORAGE_FOLDERS.WEBSITE}/fonts/${timestamp}-${random}.${extension}`;
 
-        const { data, error } = await supabase.storage
+        const { data, error } = await (await getSupabaseStorage())
           .from(STORAGE_BUCKET)
           .upload(storagePath, buffer, {
             contentType: extension === 'woff2' ? 'font/woff2' : 'font/ttf',
@@ -252,7 +255,7 @@ async function copyTemplateAssetsToUserStorage(knex: ReturnType<typeof getKnexCl
           continue;
         }
 
-        const { data: urlData } = supabase.storage
+        const { data: urlData } = (await getSupabaseStorage())
           .from(STORAGE_BUCKET)
           .getPublicUrl(data.path);
 
@@ -348,6 +351,12 @@ export async function applyTemplate(
   templateId: string,
   tenantId?: string
 ): Promise<ApplyTemplateResult> {
+  // Truncates whole tables and runs remote SQL, which would affect every tenant
+  const restriction = multiTenantRestriction('Applying a template');
+  if (restriction) {
+    return { success: false, error: restriction };
+  }
+
   // Test database connection first
   const canConnect = await testKnexConnection();
   if (!canConnect) {

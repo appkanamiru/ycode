@@ -32,7 +32,7 @@ import {
   insertValuesBulk,
   getValuesByItemIds,
 } from '@/lib/repositories/collectionItemValueRepository';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 
 import {
   listCollectionsWithFields,
@@ -1081,7 +1081,7 @@ async function batchUpsertValues(
 /** Soft-delete a batch of Ycode items. */
 async function batchSoftDelete(itemIds: string[]): Promise<void> {
   if (itemIds.length === 0) return;
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) throw new Error('Supabase not configured');
 
   const now = new Date().toISOString();

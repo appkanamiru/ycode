@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import type {
   FormSubmission,
   FormSummary,
@@ -21,7 +21,7 @@ export async function getAllFormSubmissions(
   formId?: string,
   status?: FormSubmissionStatus
 ): Promise<FormSubmission[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -53,7 +53,7 @@ export async function getAllFormSubmissions(
  * Get form submission by ID
  */
 export async function getFormSubmissionById(id: string): Promise<FormSubmission | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -76,7 +76,7 @@ export async function getFormSubmissionById(id: string): Promise<FormSubmission 
  * Get all unique forms with submission counts
  */
 export async function getFormSummaries(): Promise<FormSummary[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -128,7 +128,7 @@ export async function countRecentSubmissionsByIp(
   since: string,
   tenantId?: string
 ): Promise<number> {
-  const client = await getSupabaseAdmin(tenantId);
+  const client = await getDbClient(tenantId);
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -153,7 +153,7 @@ export async function countRecentSubmissionsByIp(
 export async function createFormSubmission(
   submissionData: CreateFormSubmissionData
 ): Promise<FormSubmission> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -185,7 +185,7 @@ export async function updateFormSubmission(
   id: string,
   submissionData: UpdateFormSubmissionData
 ): Promise<FormSubmission> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -209,7 +209,7 @@ export async function updateFormSubmission(
  * Delete a form submission
  */
 export async function deleteFormSubmission(id: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -231,7 +231,7 @@ export async function deleteFormSubmission(id: string): Promise<void> {
 export async function bulkDeleteFormSubmissions(ids: string[]): Promise<void> {
   if (ids.length === 0) return;
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -251,7 +251,7 @@ export async function bulkDeleteFormSubmissions(ids: string[]): Promise<void> {
  * Delete all submissions for a form
  */
 export async function deleteFormSubmissionsByFormId(formId: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -271,7 +271,7 @@ export async function deleteFormSubmissionsByFormId(formId: string): Promise<voi
  * Mark all submissions for a form as read
  */
 export async function markAllAsRead(formId: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');

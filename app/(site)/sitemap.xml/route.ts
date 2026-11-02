@@ -7,6 +7,7 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { credentials } from '@/lib/credentials';
+import { isPostgresDriver } from '@/lib/database/pg-client';
 
 import { getAllPages } from '@/lib/repositories/pageRepository';
 import { getAllPublishedPageFolders } from '@/lib/repositories/pageFolderRepository';
@@ -28,7 +29,8 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const hasSupabaseCredentials = await credentials.exists();
+    // Plain Postgres needs no Supabase credentials
+    const hasSupabaseCredentials = isPostgresDriver() || await credentials.exists();
     if (!hasSupabaseCredentials) {
       const xml = generateSitemapXml([]);
 

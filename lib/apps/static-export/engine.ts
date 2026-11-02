@@ -24,7 +24,7 @@ import { getAssetById } from '@/lib/repositories/assetRepository'
 import { getPublishedFonts } from '@/lib/repositories/fontRepository'
 import { getSettingByKey } from '@/lib/repositories/settingsRepository'
 import { getTranslationsByLocale } from '@/lib/repositories/translationRepository'
-import { getSupabaseAdmin } from '@/lib/supabase-server'
+import { getDbClient } from '@/lib/database/pg-client'
 import { getSiteBaseUrl } from '@/lib/url-utils'
 
 import type { Locale, Page, PageFolder, Translation } from '@/types'
@@ -123,7 +123,7 @@ export async function exportSite(presetJobId?: string): Promise<ExportJob> {
       throw new Error('No output target selected — pick at least one of: local, S3, GitHub')
     }
 
-    const client = await getSupabaseAdmin()
+    const client = await getDbClient()
     if (!client) throw new Error('Supabase client not configured')
 
     // ---- Load pages (one query, all published, all routes) --------------

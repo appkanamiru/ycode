@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { getAllPages, createPage, enrichDraftPagesWithPublishStatus } from '@/lib/repositories/pageRepository';
 import { upsertDraftLayers } from '@/lib/repositories/pageLayersRepository';
 import { noCache } from '@/lib/api-response';
+import { reportPageEvent } from '@/lib/services/siteEvents';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -162,6 +163,7 @@ export async function POST(request: NextRequest) {
     };
 
     await upsertDraftLayers(page.id, [bodyLayer]);
+    void reportPageEvent('created', page);
 
     return noCache({
       data: page,

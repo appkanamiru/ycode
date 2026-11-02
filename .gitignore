@@ -70,3 +70,6 @@ next-env.d.ts
 
 # scripts
 release.sh
+
+# Filesystem storage (YCODE_DB_DRIVER=postgres)
+/data/

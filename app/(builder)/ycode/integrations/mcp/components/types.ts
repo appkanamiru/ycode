@@ -10,6 +10,8 @@ export interface McpToken {
   oauth_client_id: string | null;
   expires_at: string | null;
   refresh_expires_at: string | null;
+  /** Multi-tenant: whether the connection is for this site or all of the user's sites */
+  scope?: 'site' | 'account';
 }
 
 export function isOAuthToken(token: McpToken): boolean {

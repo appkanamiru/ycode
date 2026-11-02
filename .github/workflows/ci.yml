@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint, types, tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # The database and realtime integration tests run against real services
+    services:
+      postgres:
+        image: postgres:16.15-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ycode_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7.4.12-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      # Route types (next-env.d.ts) that the type check needs
+      - run: npx next typegen
+
+      - run: npm run lint
+
+      - run: npm run type-check
+
+      - run: npm test
+        env:
+          PG_CLIENT_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/ycode_test
+          REDIS_TEST_URL: redis://localhost:6379
+
+      - run: npm run build
+
+  docker:
+    name: Docker images
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: App image
+        run: docker build -t ycode-platform:ci .
+
+      - name: Caddy image (Cloudflare DNS module)
+        run: docker build -t ycode-caddy:ci deploy/caddy
+
+      - name: Compose configuration
+        run: |
+          cp deploy/.env.example deploy/.env
+          # Fill every value left empty in the example, required or not
+          sed -i 's/^\([A-Z0-9_]*\)=$/\1=ci/' deploy/.env
+          docker compose --env-file deploy/.env -f deploy/docker-compose.yml config --quiet
+          docker compose --env-file deploy/local.env -f deploy/docker-compose.yml -f deploy/docker-compose.local.yml config --quiet

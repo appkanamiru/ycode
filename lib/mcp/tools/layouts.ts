@@ -9,6 +9,7 @@ import {
   getLayoutsByCategory,
 } from '@/lib/templates/blocks';
 import { findLayerById, insertLayer, canHaveChildren } from '@/lib/mcp/utils';
+import { flattenInlinedComponents } from '@/lib/templates/inlined-components';
 
 interface CatalogEntry {
   key: string;
@@ -60,7 +61,9 @@ without list_layouts (only use list_layouts if you need preview image URLs).`,
       position: z.number().optional().describe('Position within parent. Omit to append at end.'),
     },
     async ({ page_id, layout_key, parent_layer_id, position }) => {
-      const layoutLayer = getLayoutTemplate(layout_key);
+      const template = getLayoutTemplate(layout_key);
+      // Components inlined in the layout are inserted as plain layers, as in the editor
+      const layoutLayer = template ? flattenInlinedComponents(template) : null;
       if (!layoutLayer) {
         return {
           content: [{

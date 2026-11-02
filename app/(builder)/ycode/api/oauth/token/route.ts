@@ -9,6 +9,16 @@ import {
   type OAuthTokenPair,
 } from '@/lib/repositories/mcpTokenRepository';
 import { verifyPkce } from '@/lib/oauth/pkce';
+import { isMultiTenant } from '@/lib/database/tenancy';
+import { findTenantByOAuthGrant } from '@/lib/platform/mcp';
+import {
+  cleanupAccountGrants,
+  consumeAccountCode,
+  isAccountGrant,
+  issueAccountToken,
+  rotateAccountRefreshToken,
+} from '@/lib/platform/mcp-account';
+import { runInTenantContext } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -104,6 +114,25 @@ export async function POST(request: NextRequest) {
     return jsonError(400, 'invalid_request', 'Missing or unparseable request body');
   }
 
+  // Multi-tenant: one token endpoint serves every site, so the code or
+  // refresh token decides which tenant the grant is handled in
+  if (!isMultiTenant()) {
+    return handleGrant(body);
+  }
+  // Clients connected to a whole account have grants of the user, not a site
+  if (isAccountGrant(body)) {
+    return handleAccountGrant(body);
+  }
+  const tenantId = await findTenantByOAuthGrant(body);
+  if (!tenantId) {
+    return body.grant_type === 'authorization_code' || body.grant_type === 'refresh_token'
+      ? jsonError(400, 'invalid_grant', 'Code or refresh token is invalid, expired, or already used')
+      : jsonError(400, 'unsupported_grant_type', `Unknown grant_type: ${body.grant_type}`);
+  }
+  return runInTenantContext(tenantId, () => handleGrant(body));
+}
+
+async function handleGrant(body: FormBody): Promise<Response> {
   // Best-effort cleanup of expired codes, dead OAuth tokens, and orphaned
   // DCR registrations ~10% of the time.
   if (Math.random() < 0.1) {
@@ -191,6 +220,36 @@ async function handleRefreshToken(body: FormBody): Promise<Response> {
   }
 
   return jsonTokens(pair);
+}
+
+async function handleAccountGrant(body: FormBody): Promise<Response> {
+  if (Math.random() < 0.1) cleanupAccountGrants().catch(() => {});
+
+  if (body.grant_type === 'refresh_token') {
+    if (!body.refresh_token || !body.client_id) {
+      return jsonError(400, 'invalid_request', 'refresh_token and client_id are required');
+    }
+    const pair = await rotateAccountRefreshToken(body.refresh_token, body.client_id);
+    return pair
+      ? jsonTokens(pair)
+      : jsonError(400, 'invalid_grant', 'Refresh token is invalid, expired, revoked, or issued to another client');
+  }
+
+  const { code, redirect_uri: redirectUri, client_id: clientId, code_verifier: codeVerifier } = body;
+  if (!code || !redirectUri || !clientId || !codeVerifier) {
+    return jsonError(400, 'invalid_request', 'authorization_code grant requires code, redirect_uri, client_id, code_verifier');
+  }
+  const stored = await consumeAccountCode(code);
+  if (!stored) return jsonError(400, 'invalid_grant', 'Code is invalid, expired, or already used');
+  if (stored.clientId !== clientId) return jsonError(400, 'invalid_grant', 'client_id mismatch');
+  if (stored.redirectUri !== redirectUri) return jsonError(400, 'invalid_grant', 'redirect_uri mismatch');
+  if (!await verifyPkce(codeVerifier, stored.codeChallenge, stored.codeChallengeMethod)) {
+    return jsonError(400, 'invalid_grant', 'PKCE verification failed');
+  }
+  const client = await resolveOAuthClient(stored.clientId);
+  if (!client) return jsonError(400, 'invalid_client', 'Client no longer exists');
+
+  return jsonTokens(await issueAccountToken({ userId: stored.userId, clientId: stored.clientId, name: client.client_name }));
 }
 
 export async function OPTIONS() {

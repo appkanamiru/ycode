@@ -11,6 +11,8 @@
 
 import { createBrowserClient as createSupabaseBrowserClient } from '@supabase/ssr';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { isPlatformAuthAvailable } from '@/lib/platform/browser-auth';
+import { getPlatformRealtimeClient } from '@/lib/realtime/browser-client';
 
 let browserClient: SupabaseClient | null = null;
 let configPromise: Promise<{ url: string; anonKey: string } | null> | null = null;
@@ -89,6 +91,10 @@ export async function createClient(): Promise<SupabaseClient> {
   const client = await getOrCreateClient();
 
   if (!client) {
+    // Plain Postgres: realtime channels over SSE instead of Supabase Realtime
+    if (await isPlatformAuthAvailable()) {
+      return getPlatformRealtimeClient() as unknown as SupabaseClient;
+    }
     throw new Error('Supabase is not configured');
   }
 

@@ -8,6 +8,14 @@ import McpClientInstructions from './components/mcp-client-instructions';
 import McpConnectionsList from './components/mcp-connections-list';
 import McpLegacyTokens from './components/mcp-legacy-tokens';
 import { isOAuthToken, type McpToken } from './components/types';
+import { fetchPlatformSites } from '@/lib/platform/browser-sites';
+
+interface AccountConnection {
+  id: string;
+  name: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
 
 export default function McpPage() {
   const [tokens, setTokens] = useState<McpToken[]>([]);
@@ -15,15 +23,36 @@ export default function McpPage() {
   const [tokenToDelete, setTokenToDelete] = useState<McpToken | null>(null);
   const [mcpUrl, setMcpUrl] = useState('');
   const [isLocalhost, setIsLocalhost] = useState(false);
+  const [accountUrl, setAccountUrl] = useState('');
+  const [accountConnections, setAccountConnections] = useState<AccountConnection[]>([]);
+
+  const fetchAccountConnections = useCallback(async () => {
+    const response = await fetch('/ycode/api/platform/mcp-connections').catch(() => null);
+    if (!response?.ok) return;
+    setAccountConnections((await response.json()).data ?? []);
+  }, []);
 
   useEffect(() => {
-    const { origin, hostname } = window.location;
+    const { origin, hostname, protocol } = window.location;
     // Deployments behind a reverse proxy or served from several hostnames can
     // pin the advertised endpoint; otherwise it is this site's own /ycode/mcp.
     const configured = process.env.NEXT_PUBLIC_MCP_SERVER_URL?.trim();
     setMcpUrl(configured || `${origin}/ycode/mcp`);
     setIsLocalhost(!configured && (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.localhost')));
-  }, []);
+
+    // Multi-tenant: each site has its own endpoint on its subdomain, so a
+    // client can connect to several sites (one connector per URL)
+    if (configured) return;
+    fetchPlatformSites().then((platform) => {
+      const site = platform?.sites.find((candidate) => candidate.active);
+      if (site && platform?.sitesDomain) {
+        setMcpUrl(`${protocol}//${site.slug}.${platform.sitesDomain}/ycode/mcp`);
+        // One connector for all of the user's sites
+        setAccountUrl(`${origin}/ycode/mcp`);
+        fetchAccountConnections();
+      }
+    }).catch(() => {});
+  }, [fetchAccountConnections]);
 
   const fetchTokens = useCallback(async () => {
     try {
@@ -43,10 +72,27 @@ export default function McpPage() {
     fetchTokens();
   }, [fetchTokens]);
 
-  const { connections, urlTokens } = useMemo(() => ({
-    connections: tokens.filter(isOAuthToken),
-    urlTokens: tokens.filter((token) => !isOAuthToken(token)),
-  }), [tokens]);
+  const { connections, urlTokens } = useMemo(() => {
+    // Multi-tenant: this site's connections and the account-wide ones, labelled
+    const siteConnections = tokens.filter(isOAuthToken)
+      .map((token): McpToken => (accountUrl ? { ...token, scope: 'site' } : token));
+    const accountTokens = accountConnections.map((connection): McpToken => ({
+      id: connection.id,
+      name: connection.name,
+      token_prefix: '',
+      is_active: true,
+      last_used_at: connection.lastUsedAt,
+      created_at: connection.createdAt,
+      oauth_client_id: 'account',
+      expires_at: null,
+      refresh_expires_at: null,
+      scope: 'account',
+    }));
+    return {
+      connections: [...accountTokens, ...siteConnections],
+      urlTokens: tokens.filter((token) => !isOAuthToken(token)),
+    };
+  }, [tokens, accountConnections, accountUrl]);
 
   const handleGenerateToken = async (name: string): Promise<McpToken | null> => {
     try {
@@ -72,6 +118,11 @@ export default function McpPage() {
     if (!tokenToDelete) return;
 
     try {
+      if (tokenToDelete.scope === 'account') {
+        await fetch(`/ycode/api/platform/mcp-connections/${tokenToDelete.id}`, { method: 'DELETE' });
+        await fetchAccountConnections();
+        return;
+      }
       await fetch(`/ycode/api/mcp-tokens/${tokenToDelete.id}`, {
         method: 'DELETE',
       });
@@ -97,7 +148,21 @@ export default function McpPage() {
           </p>
         </div>
 
-        {mcpUrl && <McpEndpointCard url={mcpUrl} />}
+        {mcpUrl && (
+          <McpEndpointCard
+            url={mcpUrl}
+            title={accountUrl ? 'This site' : undefined}
+            description={accountUrl ? 'Connects an AI tool to this site only. Add one connector per site.' : undefined}
+          />
+        )}
+
+        {accountUrl && (
+          <McpEndpointCard
+            url={accountUrl}
+            title="All your sites"
+            description="One connector for every site you are a member of, including sites you join later. The AI tool lists your sites and picks the one to work on."
+          />
+        )}
 
         <div className="flex flex-col gap-3">
           <span className="text-base font-medium">Connections</span>
@@ -135,7 +200,7 @@ export default function McpPage() {
           }}
           title={deleteIsConnection ? 'Revoke connection' : 'Delete URL token'}
           description={deleteIsConnection
-            ? `Revoke access for "${tokenToDelete?.name}"? The client will need to reconnect and approve access again.`
+            ? `Revoke access for "${tokenToDelete?.name}"${tokenToDelete?.scope === 'account' ? ' to all your sites' : ''}? The client will need to reconnect and approve access again.`
             : `Delete "${tokenToDelete?.name}"? AI tools using this URL will no longer be able to connect.`}
           confirmLabel={deleteIsConnection ? 'Revoke' : 'Delete'}
           onConfirm={handleDeleteToken}

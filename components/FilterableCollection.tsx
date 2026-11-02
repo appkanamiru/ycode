@@ -40,6 +40,8 @@ interface FilterableCollectionProps {
   pageCollectionSortedItemIds?: string[];
   /** Full collection layer (sans children) — lets the server rebuild proper item wrappers (link/action/attributes). */
   collectionLayer?: Omit<Layer, 'children'>;
+  /** Language of the page (null on default-language pages), for translations and value formats of loaded items. */
+  localeCode?: string | null;
 }
 
 const FC_FILTERED_ATTR = 'data-fc-filtered';
@@ -118,6 +120,7 @@ export default function FilterableCollection({
   pageCollectionItemId,
   pageCollectionSortedItemIds,
   collectionLayer,
+  localeCode,
 }: FilterableCollectionProps) {
   const markerRef = useRef<HTMLSpanElement>(null);
   const ssrChildrenRef = useRef<Element[]>([]);
@@ -767,6 +770,7 @@ export default function FilterableCollection({
         pageCollectionItemId,
         pageCollectionSortedItemIds,
         collectionLayer,
+        localeCode: localeCode ?? undefined,
       }),
       signal: controller.signal,
     })
@@ -821,7 +825,7 @@ export default function FilterableCollection({
           abortRef.current = null;
         }
       });
-  }, [collectionId, collectionLayerId, layerTemplate, effectiveSortBy, effectiveSortOrder, limit, maxTotal, baseOffset, paginationMode, updateEmptyStateElements, injectFilteredHTML, showLoadingSkeleton, removeLoadingSkeleton, collectionLayerClasses, collectionLayerTag, isPublished, isPreview, pageCollectionItemId, pageCollectionSortedItemIds, collectionLayer]);
+  }, [collectionId, collectionLayerId, layerTemplate, effectiveSortBy, effectiveSortOrder, limit, maxTotal, baseOffset, paginationMode, updateEmptyStateElements, injectFilteredHTML, showLoadingSkeleton, removeLoadingSkeleton, collectionLayerClasses, collectionLayerTag, isPublished, isPreview, pageCollectionItemId, pageCollectionSortedItemIds, collectionLayer, localeCode]);
 
   const fetchFilteredRef = useRef(fetchFiltered);
   useEffect(() => { fetchFilteredRef.current = fetchFiltered; }, [fetchFiltered]);

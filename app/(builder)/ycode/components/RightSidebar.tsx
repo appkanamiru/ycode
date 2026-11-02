@@ -91,6 +91,7 @@ import { useLocalizationMode } from '@/hooks/use-localization-mode';
 import SidebarTranslationRow from './SidebarTranslationRow';
 import { extractLayerTranslatableItemsShallow } from '@/lib/localisation-utils';
 import { useLocalisationStore } from '@/stores/useLocalisationStore';
+import { localizeTemplateTexts } from '@/lib/templates/localize';
 
 // 5.5 Hooks
 import { useLayerLocks } from '@/hooks/use-layer-locks';
@@ -1629,9 +1630,10 @@ const RightSidebar = React.memo(function RightSidebar({
     }
 
     const paginationWrapperId = `${collectionLayerId}-pagination-wrapper`;
-    const paginationWrapper = mode === 'pages'
-      ? createPagesWrapper(collectionLayerId)
-      : createLoadMoreWrapper(collectionLayerId);
+    const paginationWrapper = localizeTemplateTexts(
+      mode === 'pages' ? createPagesWrapper(collectionLayerId) : createLoadMoreWrapper(collectionLayerId),
+      useLocalisationStore.getState().defaultLocale?.code,
+    );
 
     const parentChildren = parentLayer.children || [];
 

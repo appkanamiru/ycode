@@ -17,7 +17,7 @@ import { getAllLocales } from '@/lib/repositories/localeRepository';
 import { getAllPublishedPageFolders } from '@/lib/repositories/pageFolderRepository';
 import { getValuesByItemIds } from '@/lib/repositories/collectionItemValueRepository';
 import { getSlugTranslationsByLocale } from '@/lib/repositories/translationRepository';
-import { buildSvgDataUrl, getAssetProxyUrl } from '@/lib/asset-utils';
+import { buildSvgDataUrl, getAssetProxyUrl, getInlineSvgAssetUrl } from '@/lib/asset-utils';
 import { generateColorVariablesCss } from '@/lib/repositories/colorVariableRepository';
 import { buildPageHreflangAlternates, type HreflangAlternate } from '@/lib/hreflang-utils';
 import { getTranslatableKey, getTranslatedAssetId, getTranslatedText } from '@/lib/locale-runtime';
@@ -79,12 +79,16 @@ export interface GenerateMetadataOptions {
  * Resolve a usable URL for favicon/web-clip assets, falling back to an
  * inline data URL for SVGs stored without a public_url/storage_path.
  */
-function resolveIconAssetUrl(asset: Asset): string | null {
+function resolveIconAssetUrl(asset: Asset, isPreview: boolean): string | null {
   const proxyOrPublic = getAssetProxyUrl(asset) || asset.public_url || null;
   if (proxyOrPublic) return proxyOrPublic;
 
   if (asset.mime_type === 'image/svg+xml' && asset.content) {
-    return buildSvgDataUrl(asset.content, asset.width, asset.height);
+    // Published pages link the file: crawlers (Google's favicon fetcher) cannot
+    // load a data URI. A preview shows draft assets, which /a/ does not serve.
+    return isPreview
+      ? buildSvgDataUrl(asset.content, asset.width, asset.height)
+      : getInlineSvgAssetUrl(asset);
   }
 
   return null;
@@ -116,7 +120,7 @@ async function fetchGlobalPageSettingsImpl(isPreview = false): Promise<GlobalPag
     try {
       const asset = await getAssetById(settings.favicon_asset_id, isAssetPublished);
       if (asset) {
-        faviconUrl = resolveIconAssetUrl(asset);
+        faviconUrl = resolveIconAssetUrl(asset, isPreview);
         faviconMimeType = asset.mime_type || null;
       }
     } catch {
@@ -128,7 +132,7 @@ async function fetchGlobalPageSettingsImpl(isPreview = false): Promise<GlobalPag
     try {
       const asset = await getAssetById(settings.web_clip_asset_id, isAssetPublished);
       if (asset) {
-        webClipUrl = resolveIconAssetUrl(asset);
+        webClipUrl = resolveIconAssetUrl(asset, isPreview);
         webClipMimeType = asset.mime_type || null;
       }
     } catch {

@@ -13,12 +13,12 @@
  *   upsert code path (one round-trip per completed turn, never per token).
  */
 
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import type { AiChat, AiChatSummary, UpsertAiChatData } from '@/types';
 
 /** Fetch all chats without their transcripts, newest activity first. */
 export async function getAllAiChatSummaries(tenantId?: string): Promise<AiChatSummary[]> {
-  const client = await getSupabaseAdmin(tenantId);
+  const client = await getDbClient(tenantId);
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -38,7 +38,7 @@ export async function getAllAiChatSummaries(tenantId?: string): Promise<AiChatSu
 
 /** Fetch a single chat including its full transcript. */
 export async function getAiChatById(id: string, tenantId?: string): Promise<AiChat | null> {
-  const client = await getSupabaseAdmin(tenantId);
+  const client = await getDbClient(tenantId);
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -67,7 +67,7 @@ export async function getAiChatById(id: string, tenantId?: string): Promise<AiCh
  * long conversations.
  */
 export async function upsertAiChat(chatData: UpsertAiChatData, tenantId?: string): Promise<void> {
-  const client = await getSupabaseAdmin(tenantId);
+  const client = await getDbClient(tenantId);
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -91,7 +91,7 @@ export async function upsertAiChat(chatData: UpsertAiChatData, tenantId?: string
 }
 
 export async function deleteAiChat(id: string, tenantId?: string): Promise<void> {
-  const client = await getSupabaseAdmin(tenantId);
+  const client = await getDbClient(tenantId);
 
   if (!client) {
     throw new Error('Supabase not configured');

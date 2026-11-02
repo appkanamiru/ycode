@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/supabase-auth';
 import { isRedirectUriRegistered, resolveOAuthClient } from '@/lib/oauth/resolve-client';
 import { createCode } from '@/lib/repositories/mcpOAuthCodeRepository';
+import { isMultiTenant } from '@/lib/database/tenancy';
+import { createAccountCode } from '@/lib/platform/mcp-account';
+import { resolveResourceSite } from '@/lib/platform/mcp-site';
+import { getSiteMembership } from '@/lib/platform/sites';
+import { runInTenantContext } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -25,6 +30,7 @@ interface AuthorizeBody {
   state?: unknown;
   scope?: unknown;
   decision?: unknown; // 'approve' | 'deny'
+  resource?: unknown; // the MCP endpoint (RFC 8707); multi-tenant, a site's own address names the site
 }
 
 function redirectWithError(
@@ -110,15 +116,44 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ redirect_to: url });
   }
 
+  // Multi-tenant: a site's own MCP address (the `resource`) connects to that
+  // site, which the user must be a member of; the editor's endpoint to all of
+  // their sites, with a code that belongs to the user
+  const resource = typeof body.resource === 'string' ? body.resource : null;
+  let siteId: string | null = null;
+  if (isMultiTenant()) {
+    const resourceSite = await resolveResourceSite(resource);
+    if (resourceSite === undefined) {
+      const code = await createAccountCode({
+        userId: auth.user.id,
+        clientId,
+        redirectUri,
+        codeChallenge,
+        codeChallengeMethod,
+      });
+      const url = new URL(redirectUri);
+      url.searchParams.set('code', code);
+      if (state) url.searchParams.set('state', state);
+      return NextResponse.json({ redirect_to: url.toString() });
+    }
+    if (!resourceSite || !(await getSiteMembership(auth.user.id, resourceSite))) {
+      return NextResponse.json(
+        { error: 'invalid_target', error_description: 'You are not a member of the site this connector is for' },
+        { status: 400 },
+      );
+    }
+    siteId = resourceSite;
+  }
+
   try {
-    const code = await createCode({
+    const code = await runInTenantContext(siteId, () => createCode({
       client_id: clientId,
       redirect_uri: redirectUri,
       code_challenge: codeChallenge,
       code_challenge_method: codeChallengeMethod,
       scope,
       user_id: auth.user.id,
-    });
+    }));
 
     const url = new URL(redirectUri);
     url.searchParams.set('code', code);

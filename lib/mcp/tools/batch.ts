@@ -23,7 +23,7 @@ import {
 } from '@/lib/mcp/utils';
 import type { RichTextBlock } from '@/lib/mcp/utils';
 import { getCachedLayers, saveCachedLayers } from '@/lib/mcp/page-layers';
-import { bindLayerToField } from '@/lib/mcp/field-binding';
+import { bindLayerToField, FORMAT_DESCRIPTION } from '@/lib/mcp/field-binding';
 import type { FieldCache } from '@/lib/mcp/field-binding';
 import { getCollectionById } from '@/lib/repositories/collectionRepository';
 import { getPageById } from '@/lib/repositories/pageRepository';
@@ -117,7 +117,7 @@ const bindFieldOp = z.object({
     .describe('"collection" = nearest ancestor Collection List (default); "page" = the dynamic page\'s item'),
   target: z.enum(['auto', 'src', 'alt', 'poster', 'background']).default('auto').optional()
     .describe('"auto" picks by layer type (text→text, image/video/audio→src); "alt", "poster" or "background" for those targets'),
-  format: z.string().optional().describe('Optional value format (e.g. a date format)'),
+  format: z.string().optional().describe(FORMAT_DESCRIPTION),
   prefix: z.string().optional().describe('Text layers: literal text before the value'),
   suffix: z.string().optional().describe('Text layers: literal text after the value'),
 });

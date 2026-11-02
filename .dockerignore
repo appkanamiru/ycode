@@ -1,0 +1,14 @@
+.git
+.github
+.husky
+.next
+node_modules
+data
+deploy
+*.log
+.env
+.env.*
+!.env.example
+coverage
+Dockerfile
+.dockerignore

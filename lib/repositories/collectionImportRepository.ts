@@ -1,4 +1,5 @@
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
+import { getSupabaseStorage } from '@/lib/supabase-storage';
 import { STORAGE_BUCKET } from '@/lib/asset-constants';
 import type { CollectionImport, CollectionImportStatus } from '@/types';
 
@@ -20,7 +21,7 @@ export interface CreateImportData {
  * Create a new import job
  */
 export async function createImport(data: CreateImportData): Promise<CollectionImport> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -52,7 +53,7 @@ export async function createImport(data: CreateImportData): Promise<CollectionIm
  * Get import by ID
  */
 export async function getImportById(id: string): Promise<CollectionImport | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -75,7 +76,7 @@ export async function getImportById(id: string): Promise<CollectionImport | null
  * Get pending or processing imports (for background processing)
  */
 export async function getPendingImports(limit: number = 5): Promise<CollectionImport[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -102,7 +103,7 @@ export async function updateImportStatus(
   id: string,
   status: CollectionImportStatus
 ): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -130,7 +131,7 @@ export async function updateImportProgress(
   failedRows: number,
   errors: string[] | null = null
 ): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -165,7 +166,7 @@ export async function completeImport(
   failedRows: number,
   errors: string[]
 ): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -193,7 +194,7 @@ export async function completeImport(
  * Delete import job
  */
 export async function deleteImport(id: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -213,7 +214,7 @@ export async function deleteImport(id: string): Promise<void> {
  * Get imports for a collection
  */
 export async function getImportsByCollectionId(collectionId: string): Promise<CollectionImport[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -240,7 +241,7 @@ const STALE_IMPORT_HOURS = 2;
  * (i.e. the user closed the page or the server crashed).
  */
 export async function cleanupStaleImports(): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) return;
 
   const cutoff = new Date(Date.now() - STALE_IMPORT_HOURS * 60 * 60 * 1000).toISOString();
@@ -268,7 +269,7 @@ export async function cleanupStaleImports(): Promise<void> {
   // Remove CSV files from storage
   if (storagePaths.length > 0) {
     try {
-      await client.storage.from(STORAGE_BUCKET).remove(storagePaths);
+      await (await getSupabaseStorage()).from(STORAGE_BUCKET).remove(storagePaths);
     } catch { /* best-effort */ }
   }
 

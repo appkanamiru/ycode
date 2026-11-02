@@ -7,7 +7,11 @@ import LightboxInitializer from '@/components/LightboxInitializer';
 import PasswordForm from '@/components/PasswordForm';
 import SliderInitializer from '@/components/SliderInitializer';
 import YcodeBadge from '@/components/YcodeBadge';
+import SiteAnalytics from '@/components/SiteAnalytics';
+import { shouldShowSiteBadge } from '@/lib/site-badge';
 import { unstable_cache } from 'next/cache';
+import { getTenantIdFromHeaders, runInTenantContext } from '@/lib/supabase-server';
+import { buildAllPagesTag } from '@/lib/cache-tags';
 import { resolveCustomCodePlaceholders } from '@/lib/resolve-cms-variables';
 import { generateInitialAnimationCSS, type HiddenLayerInfo } from '@/lib/animation-utils';
 import { buildCustomFontsCss, buildFontClassesCss, fetchGoogleFontsCss, getCustomFontPreloads, getGoogleFontLinks } from '@/lib/font-utils';
@@ -33,17 +37,28 @@ import type { Layer, BackgroundsDesign, Component, Page, CollectionItemWithValue
 
 interface PageLinkRef { collection_item_id: string; page_id: string }
 
-const getCachedPublishedPages = unstable_cache(
-  async () => getAllPages({ is_published: true }),
-  ['page-renderer-published-pages'],
-  { tags: ['all-pages'], revalidate: false }
-);
+/**
+ * Published pages and folders for link resolution, cached per tenant. The
+ * cached functions run in the tenant's context, as request headers are not
+ * readable inside unstable_cache.
+ */
+function getCachedPublishedLinkTargets(tenantId: string | null) {
+  const options = { tags: [buildAllPagesTag(tenantId)], revalidate: false as const };
+  const key = tenantId ?? 'default';
 
-const getCachedPublishedFolders = unstable_cache(
-  async () => getAllPageFolders({ is_published: true }),
-  ['page-renderer-published-folders'],
-  { tags: ['all-pages'], revalidate: false }
-);
+  return Promise.all([
+    unstable_cache(
+      async () => runInTenantContext(tenantId, () => getAllPages({ is_published: true })),
+      ['page-renderer-published-pages', key],
+      options
+    )(),
+    unstable_cache(
+      async () => runInTenantContext(tenantId, () => getAllPageFolders({ is_published: true })),
+      ['page-renderer-published-folders', key],
+      options
+    )(),
+  ]);
+}
 
 /** Recursively collect all page link refs ({collection_item_id, page_id}) from a Tiptap JSON node.
  * Also descends into pre-resolved layers stored on embedded richTextComponent nodes. */
@@ -454,7 +469,7 @@ export default async function PageRenderer({
 
     [[pages, folders]] = await Promise.all([
       usePublishedData
-        ? Promise.all([getCachedPublishedPages(), getCachedPublishedFolders()])
+        ? getCachedPublishedLinkTargets(await getTenantIdFromHeaders())
         : Promise.all([
           getAllPages({ is_published: false }),
           getAllPageFolders({ is_published: false }),
@@ -967,7 +982,8 @@ export default async function PageRenderer({
         <CustomCodeInjector html={pageCustomCodeBody} />
       )}
 
-      {ycodeBadge && !isPreview && <YcodeBadge />}
+      {!isPreview && await shouldShowSiteBadge(ycodeBadge) && <YcodeBadge />}
+      {!isPreview && <SiteAnalytics />}
     </>
   );
 }

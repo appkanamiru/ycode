@@ -4,7 +4,7 @@
  * Functions to find and count asset usage across pages, components, and CMS items
  */
 
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Layer } from '@/types';
 import { ASSET_FIELD_TYPES, findDisplayField } from './collection-field-utils';
@@ -238,7 +238,7 @@ async function fetchAssetFieldsWithDefaults(
  * Get asset usage with names across pages, components, and CMS items
  */
 export async function getAssetUsage(assetId: string): Promise<AssetUsageResult> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -550,7 +550,7 @@ export async function getBulkAssetUsage(
     return {};
   }
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -977,7 +977,7 @@ export interface AssetCleanupResult {
  * Returns affected entities with before/after states for version tracking
  */
 export async function cleanupAssetReferences(assetId: string): Promise<AssetCleanupResult> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');

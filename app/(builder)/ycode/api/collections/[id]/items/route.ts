@@ -10,6 +10,7 @@ import { findStatusFieldId, isAssetFieldType, isMultipleAssetField } from '@/lib
 import type { StatusAction } from '@/lib/collection-field-utils';
 import { noCache } from '@/lib/api-response';
 import type { CollectionItemWithValues, CollectionField } from '@/types';
+import { reportCollectionItemChanged } from '@/lib/services/siteEvents';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -279,6 +280,8 @@ export async function POST(
     }
 
     // Get item with values and enrich with status
+    void reportCollectionItemChanged('created', id, item.id);
+
     const itemWithValues = await getItemWithValues(item.id, false);
     if (itemWithValues) {
       await enrichSingleItemWithStatus(itemWithValues, id);

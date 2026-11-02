@@ -7,7 +7,8 @@
 import type { CollectionField, Layer } from '@/types';
 import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
 import { getPageById } from '@/lib/repositories/pageRepository';
-import { applyFieldBinding, buildFieldData } from '@/lib/mcp/field-binding-core';
+import { getDefaultLocale } from '@/lib/repositories/localeRepository';
+import { applyFieldBinding, buildFieldData, getFieldFormatError } from '@/lib/mcp/field-binding-core';
 import type { BindingSource, BindingTarget } from '@/lib/mcp/field-binding-core';
 import { findParentCollectionLayer } from '@/lib/layer-utils';
 
@@ -67,6 +68,13 @@ export function getFieldsCached(collectionId: string, cache?: FieldCache): Promi
   return pending;
 }
 
+/** getFieldFormatError with example output in the site's default language */
+export async function getSiteFieldFormatError(field: CollectionField, format: string | undefined): Promise<string | null> {
+  if (!getFieldFormatError(field, format)) return null;
+  const locale = await getDefaultLocale();
+  return getFieldFormatError(field, format, locale?.code);
+}
+
 /**
  * Resolve the field and compute the bound layer. Returns the updated layer and a
  * short summary, or an error describing why the layer cannot take the binding.
@@ -86,6 +94,9 @@ export async function bindLayerToField(
   if (!field) {
     return { error: `Field "${input.field_id}" not found in the ${input.source === 'page' ? 'page' : 'list'} collection.` };
   }
+
+  const formatError = await getSiteFieldFormatError(field, input.format);
+  if (formatError) return { error: formatError };
 
   const fieldData = buildFieldData(field, input.source, ctx.collectionLayerId, input.format);
   return applyFieldBinding(layer, field, fieldData, input);

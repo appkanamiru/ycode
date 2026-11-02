@@ -1,6 +1,6 @@
 import type { Page, PageFolder } from '@/types';
 import { createHmac, randomUUID } from 'crypto';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 
 /**
  * Page Password Protection Utilities
@@ -210,7 +210,7 @@ export function getPasswordProtection(
  * @returns Array of page folders
  */
 export async function fetchFoldersForAuth(isPublished: boolean): Promise<PageFolder[]> {
-  const supabase = await getSupabaseAdmin();
+  const supabase = await getDbClient();
   if (!supabase) return [];
 
   const { data } = await supabase

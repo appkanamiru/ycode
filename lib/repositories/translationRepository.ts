@@ -5,7 +5,8 @@
  * Supports draft/published workflow with composite primary key (id, is_published)
  */
 
-import { getSupabaseAdmin, getTenantIdFromHeaders } from '@/lib/supabase-server';
+import { getTenantIdFromHeaders } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { fetchAllRows, SUPABASE_WRITE_BATCH_SIZE } from '@/lib/supabase-constants';
 import { getKnexClient } from '@/lib/knex-client';
 import type { Translation, CreateTranslationData, UpdateTranslationData } from '@/types';
@@ -37,7 +38,7 @@ export async function getAllTranslationRows<T = Translation>(
     }
     return await query as T[];
   } catch {
-    const client = await getSupabaseAdmin(tenantId);
+    const client = await getDbClient(tenantId);
     if (!client) return [];
     const select = columns.includes('*') ? '*' : columns.join(', ');
     return await fetchAllRows<T>((from, to) =>
@@ -59,7 +60,7 @@ export async function getTranslationsByLocale(
   isPublished: boolean = false,
   tenantId?: string
 ): Promise<Translation[]> {
-  const client = await getSupabaseAdmin(tenantId);
+  const client = await getDbClient(tenantId);
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -124,7 +125,7 @@ export async function getLocaleScaffoldTranslations(
   isPublished: boolean,
   tenantId?: string,
 ): Promise<Translation[]> {
-  const client = await getSupabaseAdmin(tenantId);
+  const client = await getDbClient(tenantId);
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -190,7 +191,7 @@ export async function getCmsTranslationsForItems(
 ): Promise<Translation[]> {
   if (itemIds.length === 0) return [];
 
-  const client = await getSupabaseAdmin(tenantId);
+  const client = await getDbClient(tenantId);
   if (!client) {
     throw new Error('Supabase not configured');
   }
@@ -226,7 +227,7 @@ export async function getSlugTranslationsByLocale(
   isPublished: boolean,
   tenantId?: string,
 ): Promise<Translation[]> {
-  const client = await getSupabaseAdmin(tenantId);
+  const client = await getDbClient(tenantId);
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -269,7 +270,7 @@ export async function getTranslationsBySource(
   isPublished: boolean = false,
   localeId?: string,
 ): Promise<Translation[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -303,7 +304,7 @@ export async function getTranslationById(
   id: string,
   isPublished: boolean = false
 ): Promise<Translation | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -337,7 +338,7 @@ export async function getTranslationByKey(
   contentKey: string,
   isPublished: boolean = false
 ): Promise<Translation | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -371,7 +372,7 @@ export async function getTranslationByKey(
 export async function createTranslation(
   translationData: CreateTranslationData
 ): Promise<Translation> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -412,7 +413,7 @@ export async function updateTranslation(
   id: string,
   updates: UpdateTranslationData
 ): Promise<Translation> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -441,7 +442,7 @@ export async function updateTranslation(
  * Delete a translation (soft delete - sets deleted_at timestamp)
  */
 export async function deleteTranslation(id: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -471,7 +472,7 @@ export async function deleteTranslationsInBulk(
   sourceIds: string | string[],
   contentKeys?: string[]
 ): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -518,7 +519,7 @@ export async function markTranslationsIncomplete(
   sourceId: string,
   contentKeys: string[]
 ): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -555,7 +556,7 @@ export async function upsertTranslations(
 ): Promise<Translation[]> {
   if (translations.length === 0) return [];
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');

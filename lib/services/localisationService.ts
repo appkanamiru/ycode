@@ -7,7 +7,7 @@
  * OLD URL when a slug or locale code is renamed.
  */
 
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { SUPABASE_IN_FILTER_CHUNK_SIZE, SUPABASE_WRITE_BATCH_SIZE } from '@/lib/supabase-constants';
 import { getAllTranslationRows } from '@/lib/repositories/translationRepository';
 import type { Locale, Translation, TranslationSourceType } from '@/types';
@@ -127,7 +127,7 @@ function buildSlugSnapshot(
  * downstream cache invalidation can reconstruct OLD URLs for slug renames.
  */
 export async function publishLocalisation(): Promise<PublishLocalisationResult> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');

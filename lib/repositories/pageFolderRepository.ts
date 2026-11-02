@@ -4,7 +4,7 @@
  * Data access layer for page folder operations with Supabase
  */
 
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import type { PageFolder } from '../../types';
 import { incrementSiblingOrders } from '../services/pageService';
 
@@ -50,7 +50,7 @@ export interface UpdatePageFolderData {
  * @throws Error if Supabase query fails
  */
 export async function getAllPageFolders(filters?: QueryFilters): Promise<PageFolder[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -83,7 +83,7 @@ export async function getAllPageFolders(filters?: QueryFilters): Promise<PageFol
  * published rows exist (composite PK is id + is_published).
  */
 export async function getPageFolderById(id: string, isPublished = false): Promise<PageFolder | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -116,7 +116,7 @@ export async function getChildFolders(
   parentId: string | null,
   orderBy: 'order' | 'created_at' = 'order'
 ): Promise<PageFolder[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -145,7 +145,7 @@ export async function getChildFolders(
  * Create new page folder
  */
 export async function createPageFolder(folderData: CreatePageFolderData): Promise<PageFolder> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -168,7 +168,7 @@ export async function createPageFolder(folderData: CreatePageFolderData): Promis
  * Update page folder
  */
 export async function updatePageFolder(id: string, updates: UpdatePageFolderData): Promise<PageFolder> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -200,7 +200,7 @@ export async function updatePageFolder(id: string, updates: UpdatePageFolderData
  * @returns Array of all descendant folder IDs
  */
 async function getDescendantFolderIdsFromDB(folderId: string): Promise<string[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -250,7 +250,7 @@ async function getDescendantFolderIdsFromDB(folderId: string): Promise<string[]>
  * @param updates - Array of { id, order } objects
  */
 export async function batchUpdateFolderOrder(updates: Array<{ id: string; order: number }>): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -281,7 +281,7 @@ export async function batchUpdateFolderOrder(updates: Array<{ id: string; order:
  * @param depth - Depth level of the siblings to reorder
  */
 export async function reorderSiblings(parentId: string | null, depth: number): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -387,7 +387,7 @@ export async function reorderSiblings(parentId: string | null, depth: number): P
  * After deletion, reorders remaining folders with the same parent_id
  */
 export async function deletePageFolder(id: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -470,7 +470,7 @@ export async function deletePageFolder(id: string): Promise<void> {
  * Restore a soft-deleted page folder
  */
 export async function restorePageFolder(id: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -494,7 +494,7 @@ export async function restorePageFolder(id: string): Promise<void> {
  * Use with caution!
  */
 export async function forceDeletePageFolder(id: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -514,7 +514,7 @@ export async function forceDeletePageFolder(id: string): Promise<void> {
  * Get draft page folder by ID
  */
 export async function getDraftPageFolderById(id: string): Promise<PageFolder | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -542,7 +542,7 @@ export async function getDraftPageFolderById(id: string): Promise<PageFolder | n
  * Get published page folder by ID
  */
 export async function getPublishedPageFolderById(id: string): Promise<PageFolder | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -571,7 +571,7 @@ export async function getPublishedPageFolderById(id: string): Promise<PageFolder
  * @param includeSoftDeleted - Include soft-deleted folders
  */
 export async function getAllDraftPageFolders(includeSoftDeleted = false): Promise<PageFolder[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -602,7 +602,7 @@ export async function getAllDraftPageFolders(includeSoftDeleted = false): Promis
  * @returns Array of published page folders
  */
 export async function getAllPublishedPageFolders(includeSoftDeleted = false, tenantId?: string): Promise<PageFolder[]> {
-  const client = await getSupabaseAdmin(tenantId);
+  const client = await getDbClient(tenantId);
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -631,7 +631,7 @@ export async function getAllPublishedPageFolders(includeSoftDeleted = false, ten
  * Fetches multiple published folders in a single query
  */
 export async function getPublishedPageFoldersByIds(ids: string[]): Promise<PageFolder[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -660,7 +660,7 @@ export async function getPublishedPageFoldersByIds(ids: string[]): Promise<PageF
  * @param filters - Optional additional filters
  */
 export async function getPageFolderBySlug(slug: string, filters?: QueryFilters): Promise<PageFolder | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -721,7 +721,7 @@ export async function reorderFolders(updates: Array<{ id: string; order: number 
  * @returns The newly created folder
  */
 export async function duplicatePageFolder(folderId: string): Promise<PageFolder> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');

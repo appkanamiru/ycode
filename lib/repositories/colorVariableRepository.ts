@@ -5,7 +5,7 @@
  * Color variables are site-wide design tokens stored as CSS custom properties.
  */
 
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { generateContentHash } from '@/lib/hash-utils';
 import type { ColorVariable } from '@/types';
 
@@ -49,7 +49,7 @@ export async function generateColorVariablesCss(): Promise<string | null> {
 }
 
 export async function getAllColorVariables(): Promise<ColorVariable[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -69,7 +69,7 @@ export async function getAllColorVariables(): Promise<ColorVariable[]> {
 }
 
 export async function getColorVariableById(id: string): Promise<ColorVariable | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -94,7 +94,7 @@ export async function getColorVariableById(id: string): Promise<ColorVariable | 
 export async function createColorVariable(
   variableData: CreateColorVariableData
 ): Promise<ColorVariable> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -126,7 +126,7 @@ export async function updateColorVariable(
   id: string,
   updates: UpdateColorVariableData
 ): Promise<ColorVariable> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -147,7 +147,7 @@ export async function updateColorVariable(
 }
 
 export async function deleteColorVariable(id: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -166,7 +166,7 @@ export async function deleteColorVariable(id: string): Promise<void> {
 export async function reorderColorVariables(
   orderedIds: string[]
 ): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');

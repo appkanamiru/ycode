@@ -14,6 +14,7 @@ import type { StaticImageData } from 'next/image';
 import airtableLogo from './airtable/logo.svg';
 import webflowLogo from './webflow/logo.svg';
 import mailerliteLogo from './mailerlite/logo.svg';
+import discordLogo from './discord/logo.svg';
 import mailchimpLogo from './mailchimp/logo.svg';
 import zapierLogo from './zapier/logo.svg';
 import makeLogo from './make/logo.svg';
@@ -93,6 +94,14 @@ export const apps: AppDefinition[] = [
     categories: ['popular', 'email'],
     implemented: true,
     author: { name: 'Ycode', url: 'https://github.com/ycode/ycode' },
+  },
+  {
+    id: 'discord',
+    name: 'Discord',
+    description: 'Get a message in your Discord channel whenever someone submits a form.',
+    logo: discordLogo,
+    categories: ['popular', 'automation'],
+    implemented: true,
   },
   {
     id: 'mailchimp',

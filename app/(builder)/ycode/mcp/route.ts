@@ -7,6 +7,8 @@ import {
   addCorsHeaders,
   buildWwwAuthenticateHeader,
 } from '@/lib/mcp/handler';
+import { handleAccountMcp, isAccountMcpRequest } from '@/lib/platform/mcp-account-route';
+import { getMcpSiteOptions } from '@/lib/platform/mcp-site';
 import { getBaseUrl } from '@/lib/oauth/metadata';
 
 export const dynamic = 'force-dynamic';
@@ -22,6 +24,10 @@ export const revalidate = 0;
  *
  * The shared session/transport logic lives in `lib/mcp/handler.ts` and is
  * also used by the legacy URL-token endpoint at `/ycode/mcp/[token]`.
+ *
+ * Multi-tenant, on the editor's host this endpoint connects to all of the
+ * user's sites (account tokens, lib/platform/mcp-account-route); on a site's
+ * own address, to that site.
  */
 
 function extractBearerToken(request: NextRequest): string | null {
@@ -58,18 +64,21 @@ async function authorize(request: NextRequest): Promise<Response | null> {
 }
 
 export async function POST(request: NextRequest) {
+  if (isAccountMcpRequest(request)) return handleAccountMcp(request);
   const denied = await authorize(request);
   if (denied) return denied;
-  return handleMcpPost(request);
+  return handleMcpPost(request, await getMcpSiteOptions());
 }
 
 export async function GET(request: NextRequest) {
+  if (isAccountMcpRequest(request)) return handleAccountMcp(request);
   const denied = await authorize(request);
   if (denied) return denied;
   return handleMcpGet(request);
 }
 
 export async function DELETE(request: NextRequest) {
+  if (isAccountMcpRequest(request)) return handleAccountMcp(request);
   const denied = await authorize(request);
   if (denied) return denied;
   return handleMcpDelete(request);

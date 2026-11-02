@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { createHash, randomBytes } from 'crypto';
 import { invalidateToken } from '@/lib/mcp/token-cache';
 
@@ -70,7 +70,7 @@ function hashRefreshToken(refreshToken: string): string {
 }
 
 export async function getAllTokens(): Promise<McpToken[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -90,7 +90,7 @@ export async function getAllTokens(): Promise<McpToken[]> {
 }
 
 export async function createToken(name: string): Promise<McpTokenWithPlainToken> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -123,7 +123,7 @@ export async function createToken(name: string): Promise<McpTokenWithPlainToken>
  * Updates last_used_at in the background.
  */
 export async function validateToken(token: string): Promise<McpToken | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -153,7 +153,7 @@ export async function validateToken(token: string): Promise<McpToken | null> {
 }
 
 export async function deleteToken(id: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -180,7 +180,7 @@ export async function deleteToken(id: string): Promise<void> {
 }
 
 export async function getTokenById(id: string): Promise<McpToken | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -206,7 +206,7 @@ export async function getTokenById(id: string): Promise<McpToken | null> {
 export async function createOAuthToken(
   data: CreateOAuthTokenData,
 ): Promise<OAuthTokenPair> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -264,7 +264,7 @@ export async function rotateRefreshToken(
   clientId: string,
   options?: { access_token_ttl_seconds?: number; refresh_token_ttl_seconds?: number },
 ): Promise<OAuthTokenPair | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -331,7 +331,7 @@ export async function rotateRefreshToken(
  * never touched. Best-effort; callers should not await failures.
  */
 export async function cleanupExpiredOAuthTokens(): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     return;

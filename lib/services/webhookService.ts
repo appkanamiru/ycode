@@ -3,6 +3,7 @@
  *
  * Handles dispatching webhook notifications for various events.
  * Supports HMAC signing, delivery logging, and event dispatching.
+ * Apps that follow events (Discord) get every event from the same place.
  */
 
 import { createHmac } from 'crypto';
@@ -14,6 +15,7 @@ import {
   type Webhook,
   type WebhookEventType,
 } from '@/lib/repositories/webhookRepository';
+import { deliverDiscordEvent, discordFollows } from '@/lib/apps/discord/events';
 
 // =============================================================================
 // Types
@@ -59,6 +61,32 @@ export function generateWebhookSignature(payload: string, secret: string): strin
  * Errors are logged but don't throw to prevent blocking the main flow.
  */
 export async function dispatchWebhookEvent(event: WebhookEvent): Promise<void> {
+  const resource = event.resourceType && event.resourceId
+    ? { type: event.resourceType, id: event.resourceId }
+    : undefined;
+  await Promise.all([
+    deliverToWebhooks(event),
+    deliverDiscordEvent(
+      { type: event.type, timestamp: event.timestamp, data: event.data, metadata: event.metadata },
+      resource,
+    ),
+  ]);
+}
+
+/**
+ * Whether anything (a webhook or an app) follows an event type, so callers
+ * can skip loading the details of an event nobody receives
+ */
+export async function hasEventSubscribers(type: WebhookEventType): Promise<boolean> {
+  try {
+    const [webhooks, discord] = await Promise.all([getWebhooksForEvent(type), discordFollows(type)]);
+    return webhooks.length > 0 || discord;
+  } catch {
+    return false;
+  }
+}
+
+async function deliverToWebhooks(event: WebhookEvent): Promise<void> {
   try {
     // Get all enabled webhooks for this event type
     const webhooks = await getWebhooksForEvent(event.type);
@@ -243,6 +271,7 @@ export async function dispatchCollectionItemCreatedEvent(data: {
   collection_id: string;
   collection_name?: string;
   item_id: string;
+  item_name?: string;
   values?: Record<string, unknown>;
 }): Promise<void> {
   await dispatchWebhookEvent({
@@ -261,6 +290,7 @@ export async function dispatchCollectionItemUpdatedEvent(data: {
   collection_id: string;
   collection_name?: string;
   item_id: string;
+  item_name?: string;
   values?: Record<string, unknown>;
 }): Promise<void> {
   await dispatchWebhookEvent({
@@ -279,6 +309,7 @@ export async function dispatchCollectionItemDeletedEvent(data: {
   collection_id: string;
   collection_name?: string;
   item_id: string;
+  item_name?: string;
 }): Promise<void> {
   await dispatchWebhookEvent({
     type: 'collection_item.deleted',
@@ -330,6 +361,52 @@ export async function dispatchAssetUploadedEvent(data: {
 }): Promise<void> {
   await dispatchWebhookEvent({
     type: 'asset.uploaded',
+    timestamp: new Date().toISOString(),
+    data,
+  });
+}
+
+/**
+ * Dispatch a page.updated event (name, slug or settings; not layer edits)
+ */
+export async function dispatchPageUpdatedEvent(data: {
+  page_id: string;
+  page_name?: string;
+  page_slug?: string;
+}): Promise<void> {
+  await dispatchWebhookEvent({
+    type: 'page.updated',
+    timestamp: new Date().toISOString(),
+    data,
+  });
+}
+
+/**
+ * Dispatch a page.deleted event
+ */
+export async function dispatchPageDeletedEvent(data: {
+  page_id: string;
+  page_name?: string;
+  page_slug?: string;
+}): Promise<void> {
+  await dispatchWebhookEvent({
+    type: 'page.deleted',
+    timestamp: new Date().toISOString(),
+    data,
+  });
+}
+
+/**
+ * Dispatch an asset.deleted event
+ */
+export async function dispatchAssetDeletedEvent(data: {
+  asset_id: string;
+  filename: string;
+  mime_type?: string;
+  file_size?: number;
+}): Promise<void> {
+  await dispatchWebhookEvent({
+    type: 'asset.deleted',
     timestamp: new Date().toISOString(),
     data,
   });

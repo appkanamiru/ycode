@@ -4,7 +4,7 @@
  * Data access layer for page operations with Supabase
  */
 
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { reorderSiblings } from '@/lib/repositories/pageFolderRepository';
 import {
   displayChangeName,
@@ -89,7 +89,7 @@ function normalizePageFolderId(folderId?: string | null): string | null {
  * const publishedPages = await getAllPages({ is_published: true });
  */
 export async function getAllPages(filters?: QueryFilters): Promise<Page[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     console.error('[pageRepository.getAllPages] Supabase client is null!');
@@ -124,7 +124,7 @@ export async function getAllPages(filters?: QueryFilters): Promise<Page[]> {
  * @param isPublished - Get draft (false) or published (true) version. Defaults to false (draft).
  */
 export async function getPageById(id: string, isPublished: boolean = false): Promise<Page | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -154,7 +154,7 @@ export async function getPageById(id: string, isPublished: boolean = false): Pro
  * @param filters - Optional additional filters
  */
 export async function getPageBySlug(slug: string, filters?: QueryFilters): Promise<Page | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -404,7 +404,7 @@ async function validateIndexPageConstraints(
  * @param additionalData - Optional additional fields (e.g., metadata, tags)
  */
 export async function createPage(pageData: CreatePageData, additionalData?: Record<string, any>): Promise<Page> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -472,7 +472,7 @@ export async function createPage(pageData: CreatePageData, additionalData?: Reco
  * Update page
  */
 export async function updatePage(id: string, updates: UpdatePageData): Promise<Page> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -577,7 +577,7 @@ export async function updatePage(id: string, updates: UpdatePageData): Promise<P
  * @param updates - Array of { id, order } objects
  */
 export async function batchUpdatePageOrder(updates: Array<{ id: string; order: number }>): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -608,7 +608,7 @@ export async function batchUpdatePageOrder(updates: Array<{ id: string; order: n
  * After deletion, reorders remaining pages with the same parent_id
  */
 export async function deletePage(id: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -680,7 +680,7 @@ export async function deletePage(id: string): Promise<void> {
  * Restore a soft-deleted page
  */
 export async function restorePage(id: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -704,7 +704,7 @@ export async function restorePage(id: string): Promise<void> {
  * Use with caution!
  */
 export async function forceDeletePage(id: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -725,7 +725,7 @@ export async function forceDeletePage(id: string): Promise<void> {
  * @param includeDeleted - If true, includes soft-deleted drafts
  */
 export async function getAllDraftPages(includeDeleted = false): Promise<Page[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -755,7 +755,7 @@ export async function getAllDraftPages(includeDeleted = false): Promise<Page[]> 
  * Used for batch publishing optimization
  */
 export async function getPublishedPagesByIds(ids: string[]): Promise<Page[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -784,7 +784,7 @@ export async function getPublishedPagesByIds(ids: string[]): Promise<Page[]> {
  * @param folderId - Folder ID (null for root/unorganized pages)
  */
 export async function getPagesByFolder(folderId: string | null): Promise<Page[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -817,7 +817,7 @@ export async function getPagesByFolder(folderId: string | null): Promise<Page[]>
  * @returns Promise resolving to the new duplicated page
  */
 export async function duplicatePage(pageId: string): Promise<Page> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -946,7 +946,7 @@ export async function backfillMissingPageHashes(): Promise<{
   pagesUpdated: number;
   layersUpdated: number;
 }> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) return { pagesUpdated: 0, layersUpdated: 0 };
 
   let pagesUpdated = 0;
@@ -1030,7 +1030,7 @@ export type UnpublishedPageChange = UnpublishedChange;
 async function getChangedDraftPageSummaries(): Promise<UnpublishedPageChange[]> {
   await backfillMissingPageHashes();
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -1114,7 +1114,7 @@ async function getChangedDraftPageSummaries(): Promise<UnpublishedPageChange[]> 
  * Soft-deleted draft pages that still have a published counterpart.
  */
 async function getDeletedPageSummaries(): Promise<UnpublishedPageChange[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -1186,7 +1186,7 @@ export async function getUnpublishedPageChanges(): Promise<UnpublishedPageChange
 export async function getUnpublishedPages(): Promise<Page[]> {
   await backfillMissingPageHashes();
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -1271,7 +1271,7 @@ export async function getUnpublishedPages(): Promise<Page[]> {
  * Used to resolve their routes before deletion so caches can be invalidated.
  */
 export async function getSoftDeletedPageIds(): Promise<string[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) return [];
 
   const { data } = await client
@@ -1289,7 +1289,7 @@ export async function getSoftDeletedPageIds(): Promise<string[]> {
  * Returns deleted page IDs so their cached routes can be invalidated.
  */
 export async function hardDeleteSoftDeletedPages(): Promise<{ count: number; deletedPageIds: string[] }> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -1341,7 +1341,7 @@ export async function hardDeleteSoftDeletedPages(): Promise<{ count: number; del
  * Set the is_publishable flag on a page's draft row.
  */
 export async function setPagePublishable(pageId: string, isPublishable: boolean): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) throw new Error('Supabase not configured');
 
   const { error } = await client
@@ -1358,7 +1358,7 @@ export async function setPagePublishable(pageId: string, isPublishable: boolean)
  * @returns true if a published row existed
  */
 export async function deletePublishedPage(pageId: string): Promise<boolean> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) throw new Error('Supabase not configured');
 
   const { data: published } = await client
@@ -1388,7 +1388,7 @@ export async function deletePublishedPage(pageId: string): Promise<boolean> {
 export async function enrichDraftPagesWithPublishStatus(pages: Page[]): Promise<Page[]> {
   if (pages.length === 0) return pages;
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) return pages;
 
   const ids = pages.map(p => p.id);

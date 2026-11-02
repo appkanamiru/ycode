@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
+import { getSupabaseStorage } from '@/lib/supabase-storage';
 import { createAsset } from '@/lib/repositories/assetRepository';
 import { STORAGE_BUCKET, getDisplayName } from '@/lib/asset-constants';
+import { reportAssetEvent } from '@/lib/services/siteEvents';
 
 export const runtime = 'nodejs';
 
@@ -30,13 +32,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = await getSupabaseAdmin();
+    const supabase = await getDbClient();
 
     if (!supabase) {
       return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
     }
 
-    const { data: urlData } = supabase.storage
+    const { data: urlData } = (await getSupabaseStorage())
       .from(STORAGE_BUCKET)
       .getPublicUrl(storagePath);
 
@@ -50,6 +52,7 @@ export async function POST(request: NextRequest) {
       asset_folder_id: assetFolderId,
     });
 
+    void reportAssetEvent('uploaded', asset);
     return NextResponse.json({ data: asset }, { status: 200 });
   } catch (error) {
     console.error('Error registering asset:', error);

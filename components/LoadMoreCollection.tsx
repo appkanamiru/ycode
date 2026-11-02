@@ -30,6 +30,8 @@ interface LoadMoreCollectionProps {
   pageCollectionSortedItemIds?: string[];
   /** Full collection layer (sans children) — lets the server rebuild proper item wrappers (link/action/attributes). */
   collectionLayer?: Omit<Layer, 'children'>;
+  /** Language of the page (null on default-language pages), for translations and value formats of loaded items. */
+  localeCode?: string | null;
 }
 
 export const LOAD_MORE_APPENDED_ATTR = 'data-lm-appended';
@@ -44,6 +46,7 @@ export default function LoadMoreCollection({
   pageCollectionItemId,
   pageCollectionSortedItemIds,
   collectionLayer,
+  localeCode,
 }: LoadMoreCollectionProps) {
   const { totalItems, itemsPerPage, collectionId, isPublished, sortBy, sortOrder, maxTotal, baseOffset } = paginationMeta;
   const markerRef = useRef<HTMLSpanElement>(null);
@@ -83,6 +86,7 @@ export default function LoadMoreCollection({
             collectionLayer,
             maxTotal,
             baseOffset,
+            localeCode: localeCode ?? undefined,
           }),
         }
       );
@@ -154,6 +158,7 @@ export default function LoadMoreCollection({
     collectionLayer,
     maxTotal,
     baseOffset,
+    localeCode,
   ]);
 
   useEffect(() => {

@@ -106,3 +106,27 @@ test('named filter utilities are read back into one filter value', () => {
   assert.equal(design?.effects?.backdropBlur, 'md');
   assert.equal(design?.layout?.justifyItems, 'center');
 });
+
+test('a border color keeps the side border widths set with it', () => {
+  const plain: Layer = { id: 'row', name: 'div', classes: '' };
+  const result = applyDesignToLayer(plain, {
+    borders: { isActive: true, borderBottomWidth: '1px', borderTopWidth: '2px', borderStyle: 'solid', borderColor: '#e5e5e5' },
+  });
+
+  assert.deepEqual(classList(result).sort(), ['border-[#e5e5e5]', 'border-b', 'border-solid', 'border-t-[2px]'].sort());
+  assert.equal(classesToDesign(classList(result))?.borders?.borderColor, '#e5e5e5');
+});
+
+test('a border color still replaces the previous color', () => {
+  const bordered: Layer = { id: 'row', name: 'div', classes: 'border-b border-red-500' };
+  const result = applyDesignToLayer(bordered, { borders: { isActive: true, borderColor: '#e5e5e5' } });
+
+  assert.deepEqual(classList(result), ['border-b', 'border-[#e5e5e5]']);
+});
+
+test('a divider color keeps the divider width and style', () => {
+  const list: Layer = { id: 'list', name: 'div', classes: 'divide-y divide-solid' };
+  const result = applyDesignToLayer(list, { borders: { isActive: true, divideColor: '#e5e5e5' } });
+
+  assert.deepEqual(classList(result), ['divide-y', 'divide-solid', 'divide-[#e5e5e5]']);
+});

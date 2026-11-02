@@ -9,7 +9,7 @@
  * by tracking operations and their inverse operations.
  */
 
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 /**
@@ -49,7 +49,7 @@ export interface TransactionOperation {
 export async function withTransaction<T>(
   fn: () => Promise<T>
 ): Promise<T> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -115,7 +115,7 @@ export async function executeParallel<T>(
  * @throws Error if client is not configured
  */
 export async function ensureClient(): Promise<SupabaseClient> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   
   if (!client) {
     throw new Error('Supabase client not configured');

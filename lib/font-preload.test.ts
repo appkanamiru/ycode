@@ -71,6 +71,11 @@ test('getTextFontFromClasses reads arbitrary family and named / numeric weights'
   assert.deepEqual(getTextFontFromClasses(''), { family: null, weight: null });
 });
 
+test('getTextFontFromClasses reads quoted arbitrary families', () => {
+  assert.deepEqual(getTextFontFromClasses("font-['IBM_Plex_Mono'] font-black"), { family: 'IBM Plex Mono', weight: 900 });
+  assert.deepEqual(getTextFontFromClasses('font-["Archivo"]'), { family: 'Archivo', weight: null });
+});
+
 test('getTextFontFromClasses ignores variants and lets built-ins reset the family', () => {
   assert.deepEqual(getTextFontFromClasses('md:font-[Inter] hover:font-bold'), { family: null, weight: null });
   assert.deepEqual(getTextFontFromClasses('font-[Inter] font-sans'), { family: 'sans', weight: null });

@@ -4,7 +4,8 @@
  * Shared helpers for managing files in Supabase Storage.
  */
 
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
+import { getSupabaseStorage } from '@/lib/supabase-storage';
 import { SUPABASE_QUERY_LIMIT, SUPABASE_WRITE_BATCH_SIZE } from '@/lib/supabase-constants';
 import { STORAGE_BUCKET } from '@/lib/asset-constants';
 
@@ -15,13 +16,13 @@ import { STORAGE_BUCKET } from '@/lib/asset-constants';
 export async function deleteStorageFiles(paths: string[]): Promise<number> {
   if (paths.length === 0) return 0;
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) return 0;
 
   let deletedCount = 0;
   for (let i = 0; i < paths.length; i += SUPABASE_WRITE_BATCH_SIZE) {
     const batch = paths.slice(i, i + SUPABASE_WRITE_BATCH_SIZE);
-    const { error } = await client.storage.from(STORAGE_BUCKET).remove(batch);
+    const { error } = await (await getSupabaseStorage()).from(STORAGE_BUCKET).remove(batch);
 
     if (error) {
       console.error(`Failed to delete ${batch.length} files from storage:`, error.message);
@@ -44,7 +45,7 @@ export async function cleanupOrphanedStorageFiles(
 ): Promise<number> {
   if (storagePaths.length === 0) return 0;
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) return 0;
 
   // Find which paths are still referenced by any row in the table

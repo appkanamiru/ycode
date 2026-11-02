@@ -36,6 +36,7 @@ import { clsx } from 'clsx';
 import type { HiddenLayerInfo } from '@/lib/animation-utils';
 import { transformLayerIdsForInstance } from '@/lib/resolve-components';
 import { FormHoneypotField } from '@/components/FormHoneypotField';
+import { resolveFormatLocale, type ValueFormat } from '@/lib/value-format';
 
 /**
  * Per-layer-type code splitting.
@@ -203,6 +204,7 @@ const LayerRendererPublic: React.FC<LayerRendererPublicProps> = ({
                 pageCollectionItemId={pageCollectionItemId}
                 pageCollectionSortedItemIds={pageCollectionSortedItemIds}
                 collectionLayer={layer._filterConfig?.collectionLayer || layer._paginationMeta!.collectionLayer}
+                localeCode={currentLocale?.code}
               >
                 {content}
               </LoadMoreCollection>
@@ -241,6 +243,7 @@ const LayerRendererPublic: React.FC<LayerRendererPublicProps> = ({
               pageCollectionItemId={pageCollectionItemId}
               pageCollectionSortedItemIds={pageCollectionSortedItemIds}
               collectionLayer={layer._filterConfig!.collectionLayer}
+              localeCode={currentLocale?.code}
             >
               {content}
             </FilterableCollection>
@@ -395,6 +398,11 @@ const LayerItem: React.FC<{
   }, [ancestorComponentIds, layer.componentId]);
 
   const timezone = ((serverSettings?.timezone as string | undefined) ?? 'UTC');
+  // Dates and numbers in the page's language, as on the server
+  const valueFormat = useMemo<ValueFormat>(
+    () => ({ timezone, locale: resolveFormatLocale(currentLocale, availableLocales) }),
+    [timezone, currentLocale, availableLocales],
+  );
   const allComponents = componentsProp ?? [];
   const colorVariables = (serverSettings?.color_variables as DesignColorVariable[] | undefined) ?? [];
 
@@ -647,7 +655,7 @@ const LayerItem: React.FC<{
       const variable = shouldFlatten
         ? { ...textVariable, data: { ...textVariable.data, content: flattenTiptapParagraphs(textVariable.data.content) } }
         : textVariable;
-      return renderRichText(variable as any, collectionLayerData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, false, linkContext, timezone, effectiveLayerDataMap, allComponents, renderComponentBlock, effectiveAncestorIds, shouldFlatten, globalsMeta);
+      return renderRichText(variable as any, collectionLayerData, pageCollectionItemData || undefined, layer.textStyles, useSpanForParagraphs, false, linkContext, valueFormat, effectiveLayerDataMap, allComponents, renderComponentBlock, effectiveAncestorIds, shouldFlatten, globalsMeta);
     }
 
     // Check for inline variables in DynamicTextVariable format (legacy)
@@ -655,7 +663,7 @@ const LayerItem: React.FC<{
       const content = textVariable.data.content;
       if (typeof content === 'string') {
         if (content.includes('<ycode-inline-variable>')) {
-          return resolveInlineVariablesFromData(content, collectionLayerData, pageCollectionItemData ?? undefined, timezone, effectiveLayerDataMap);
+          return resolveInlineVariablesFromData(content, collectionLayerData, pageCollectionItemData ?? undefined, valueFormat, effectiveLayerDataMap);
         }
         return content;
       }
@@ -702,7 +710,7 @@ const LayerItem: React.FC<{
     ? (extractPlainTextFromTiptap(rawImageAltContent) || '')
     : String(rawImageAltContent || '');
   const originalImageAlt = rawImageAlt.includes('<ycode-inline-variable>')
-    ? resolveInlineVariablesFromData(rawImageAlt, collectionLayerData, pageCollectionItemData ?? undefined, timezone, effectiveLayerDataMap)
+    ? resolveInlineVariablesFromData(rawImageAlt, collectionLayerData, pageCollectionItemData ?? undefined, valueFormat, effectiveLayerDataMap)
     : rawImageAlt;
   const translatedImageAlt = getTranslatedText(
     originalImageAlt,
@@ -1548,7 +1556,7 @@ const LayerItem: React.FC<{
         if (videoSrc.type === 'video' && 'provider' in videoSrc.data && videoSrc.data.provider === 'youtube') {
           const rawVideoId = videoSrc.data.video_id || '';
           // Resolve inline variables in video ID (supports CMS binding)
-          const videoId = resolveInlineVariablesFromData(rawVideoId, collectionLayerData, pageCollectionItemData, timezone, effectiveLayerDataMap);
+          const videoId = resolveInlineVariablesFromData(rawVideoId, collectionLayerData, pageCollectionItemData, valueFormat, effectiveLayerDataMap);
           // Use normalized attributes for consistency (already handles string/boolean conversion)
           const privacyMode = normalizedAttributes?.youtubePrivacyMode === true;
           const domain = privacyMode ? 'youtube-nocookie.com' : 'youtube.com';

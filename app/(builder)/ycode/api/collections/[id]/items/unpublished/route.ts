@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getItemsWithValues } from '@/lib/repositories/collectionItemRepository';
 import { noCache } from '@/lib/api-response';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -23,7 +23,7 @@ export async function GET(
     const { id } = await params;
     const collectionId = id; // UUID string, no parsing needed
 
-    const client = await getSupabaseAdmin();
+    const client = await getDbClient();
 
     if (!client) {
       return noCache({ error: 'Supabase not configured' }, 500);

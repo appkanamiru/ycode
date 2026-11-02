@@ -6,6 +6,7 @@ import { getDocumentSlugPath } from '@/lib/document-path';
 import { fetchErrorPage, fetchPageByPathForMetadata, slimPageData } from '@/lib/page-fetcher';
 import { resolvePathLocaleCode } from '@/lib/resolve-html-lang';
 import type { PageData } from '@/lib/page-fetcher';
+import { getTenantIdFromHeaders, runInTenantContext } from '@/lib/supabase-server';
 
 export type ErrorPageCode = 401 | 404;
 
@@ -21,18 +22,19 @@ export type ErrorPageCode = 401 | 404;
  */
 export async function fetchCachedErrorPage(
   errorCode: ErrorPageCode,
-  tenantId?: string,
+  requestedTenantId?: string,
   slugPath?: string
 ): Promise<PageData | null> {
   try {
+    const tenantId = requestedTenantId ?? (await getTenantIdFromHeaders()) ?? undefined;
     const localePath = slugPath ?? (errorCode === 404 ? getDocumentSlugPath() : undefined);
     const localeCode = localePath ? await resolvePathLocaleCode(localePath, true, tenantId) : null;
 
     return await unstable_cache(
-      async () => {
+      async () => runInTenantContext(tenantId, async () => {
         const data = await fetchErrorPage(errorCode, true, tenantId, localeCode ?? undefined, { throwOnError: true });
         return data ? slimPageData(data) : null;
-      },
+      }),
       [`error-${errorCode}`, tenantId ?? '', localeCode ?? ''],
       { tags: [buildAllPagesTag(tenantId)], revalidate: false }
     )();
@@ -46,12 +48,13 @@ export async function fetchCachedErrorPage(
  * Cached metadata-only lookup of a published page (no layer resolution).
  * Shared by the published page route and its layout so both read one entry.
  */
-export function fetchCachedPageForMetadata(
+export async function fetchCachedPageForMetadata(
   slugPath: string,
-  tenantId?: string
+  requestedTenantId?: string
 ): Promise<PageData | null> {
+  const tenantId = requestedTenantId ?? (await getTenantIdFromHeaders()) ?? undefined;
   return unstable_cache(
-    async () => fetchPageByPathForMetadata(slugPath, true, undefined, tenantId),
+    async () => runInTenantContext(tenantId, () => fetchPageByPathForMetadata(slugPath, true, undefined, tenantId)),
     [`metadata-/${slugPath}`, tenantId ?? ''],
     { tags: [buildRouteTag(tenantId, slugPath), buildAllPagesTag(tenantId)], revalidate: false }
   )();

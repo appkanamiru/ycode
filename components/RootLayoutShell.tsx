@@ -2,11 +2,15 @@ import React from 'react';
 import type { Metadata } from 'next';
 import DarkModeProvider from '@/components/DarkModeProvider';
 import { htmlDirFromLang } from '@/lib/html-lang';
+import { getSiteGenerator } from '@/lib/site-generator';
 
-export const defaultMetadata: Metadata = {
-  title: 'Ycode - Visual Website Builder',
-  description: 'Self-hosted visual website builder',
-};
+/** Title of the editor (and fallback of sites), named after SITE_GENERATOR_NAME at runtime */
+export function getDefaultMetadata(): Metadata {
+  const { name } = getSiteGenerator();
+  return name === 'Ycode'
+    ? { title: 'Ycode - Visual Website Builder', description: 'Self-hosted visual website builder' }
+    : { title: `${name} - Website Builder`, description: 'Visual website builder' };
+}
 
 interface RootLayoutShellProps {
   children: React.ReactNode;

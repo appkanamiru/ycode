@@ -1,6 +1,6 @@
 {
   "name": "ycode",
-  "version": "1.38.0",
+  "version": "1.38.1",
   "description": "Visual website builder you can self-host",
   "license": "MIT",
   "private": false,
@@ -37,6 +37,7 @@
     "migrate:rollback": "NODE_NO_WARNINGS=1 knex migrate:rollback --knexfile knexfile.ts",
     "migrate:status": "NODE_NO_WARNINGS=1 knex migrate:status --knexfile knexfile.ts",
     "migrate:credentials": "npx ts-node scripts/migrate-credentials.ts",
+    "migrate:postgres": "TS_NODE_TRANSPILE_ONLY=1 TS_NODE_PROJECT=tsconfig.test.json node --require ts-node/register --require tsconfig-paths/register scripts/migrate-postgres.ts",
     "agent:tools": "TS_NODE_TRANSPILE_ONLY=1 TS_NODE_PROJECT=tsconfig.test.json node --require ts-node/register --require tsconfig-paths/register scripts/list-agent-tools.ts",
     "agent:smoke": "TS_NODE_TRANSPILE_ONLY=1 TS_NODE_PROJECT=tsconfig.test.json node --require ts-node/register --require tsconfig-paths/register scripts/smoke-agent.ts",
     "fonts:update": "npx ts-node scripts/fetch-google-fonts.ts",
@@ -86,12 +87,15 @@
     "@tiptap/react": "^3.10.7",
     "@tiptap/starter-kit": "^3.10.7",
     "@vercel/functions": "^3.5.1",
+    "better-auth": "1.7.7",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dompurify": "^3.4.11",
     "gsap": "^3.13.0",
     "html-to-image": "^1.11.13",
+    "ioredis": "5.11.1",
     "knex": "^3.1.0",
+    "kysely": "0.29.7",
     "linkedom": "^0.18.13",
     "lodash": "^4.17.21",
     "lodash.debounce": "^4.0.8",
@@ -127,6 +131,7 @@
     "@types/lodash": "^4.17.20",
     "@types/lodash.debounce": "^4.0.9",
     "@types/node": "^20.19.23",
+    "@types/pg": "8.23.1",
     "@types/prismjs": "^1.26.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -152,7 +157,8 @@
     "whatwg-url": "^14.2.0",
     "tr46": "^5.1.0",
     "diff": ">=8.0.3",
-    "glob": ">=10.4.6"
+    "glob": ">=10.4.6",
+    "jose": "6.2.12"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [

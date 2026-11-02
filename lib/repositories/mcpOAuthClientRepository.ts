@@ -1,4 +1,5 @@
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
+import { isMultiTenant } from '@/lib/database/tenancy';
 import { randomBytes } from 'crypto';
 
 /**
@@ -28,7 +29,7 @@ function generateClientId(): string {
 }
 
 export async function registerClient(data: RegisterClientData): Promise<McpOAuthClient> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');
@@ -64,7 +65,13 @@ export async function registerClient(data: RegisterClientData): Promise<McpOAuth
  * Best-effort; callers should not await failures.
  */
 export async function cleanupOrphanClients(): Promise<void> {
-  const client = await getSupabaseAdmin();
+  // Clients are shared by all tenants while tokens are per tenant, so a
+  // tenant-scoped run would see other tenants' clients as orphaned
+  if (isMultiTenant()) {
+    return;
+  }
+
+  const client = await getDbClient();
 
   if (!client) {
     return;
@@ -83,10 +90,17 @@ export async function cleanupOrphanClients(): Promise<void> {
 
   const staleIds = stale.map((row) => row.client_id);
 
-  const [{ data: tokenRefs }, { data: codeRefs }] = await Promise.all([
+  const [tokenResult, codeResult] = await Promise.all([
     client.from('mcp_tokens').select('oauth_client_id').in('oauth_client_id', staleIds),
     client.from('mcp_oauth_codes').select('client_id').in('client_id', staleIds),
   ]);
+
+  // Without the references every stale client would look orphaned
+  if (tokenResult.error || codeResult.error) {
+    return;
+  }
+  const { data: tokenRefs } = tokenResult;
+  const { data: codeRefs } = codeResult;
 
   const referenced = new Set<string>();
   for (const row of tokenRefs ?? []) {
@@ -108,7 +122,7 @@ export async function cleanupOrphanClients(): Promise<void> {
 }
 
 export async function getClient(clientId: string): Promise<McpOAuthClient | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase not configured');

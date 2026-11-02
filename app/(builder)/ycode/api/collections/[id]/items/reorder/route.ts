@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { noCache } from '@/lib/api-response';
 
 // Disable caching for this route
@@ -40,7 +40,7 @@ export async function POST(
       }
     }
     
-    const client = await getSupabaseAdmin();
+    const client = await getDbClient();
     
     if (!client) {
       return noCache({ error: 'Supabase not configured' }, 500);

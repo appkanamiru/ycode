@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteItem } from '@/lib/repositories/collectionItemRepository';
 import { noCache } from '@/lib/api-response';
+import { prepareCollectionItemsDeleted, reportCollectionItemsDeleted } from '@/lib/services/siteEvents';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -26,11 +27,14 @@ export async function POST(request: NextRequest) {
     
     let deletedCount = 0;
     const errors: string[] = [];
+    const notices = await prepareCollectionItemsDeleted(item_ids);
+    const deletedIds = new Set<string>();
     
     // Delete each item
     for (const itemId of item_ids) {
       try {
         await deleteItem(itemId);
+        deletedIds.add(itemId);
         deletedCount++;
       } catch (error) {
         console.error(`Error deleting item ${itemId}:`, error);
@@ -39,6 +43,8 @@ export async function POST(request: NextRequest) {
       }
     }
     
+    void reportCollectionItemsDeleted(notices?.filter((notice) => deletedIds.has(notice.item_id)) ?? null);
+
     return noCache({ 
       data: { 
         deleted: deletedCount,

@@ -27,6 +27,22 @@ if (process.env.SUPABASE_URL) {
   }
 }
 
+// Filesystem storage (YCODE_DB_DRIVER=postgres) serves uploads from the editor's origin
+const storageUrl = process.env.STORAGE_PUBLIC_URL || process.env.BETTER_AUTH_URL;
+if (storageUrl) {
+  try {
+    const parsed = new URL(storageUrl);
+    imageRemotePatterns.push({
+      protocol: (parsed.protocol.replace(':', '') as 'http' | 'https') || 'https',
+      hostname: parsed.hostname,
+      ...(parsed.port ? { port: parsed.port } : {}),
+      pathname: '/ycode/storage/**',
+    });
+  } catch {
+    // Invalid URL: uploads just won't go through the image optimizer
+  }
+}
+
 const nextConfig: NextConfig = {
   trailingSlash: false,
   staticPageGenerationTimeout: 120,

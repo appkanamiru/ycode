@@ -24,7 +24,8 @@ import { uploadFile } from '@/lib/file-upload';
 import { findAssetsByFilenames } from '@/lib/repositories/assetRepository';
 import { generateCollectionItemContentHash } from '@/lib/hash-utils';
 import { noCache } from '@/lib/api-response';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
+import { getSupabaseStorage } from '@/lib/supabase-storage';
 import { STORAGE_BUCKET } from '@/lib/asset-constants';
 import { randomUUID } from 'crypto';
 import type { CollectionField } from '@/types';
@@ -233,13 +234,13 @@ function prepareRow(
  */
 async function loadBatchFromStorage(
   batchPath: string,
-): Promise<{ rows: Record<string, string>[]; supabase: Awaited<ReturnType<typeof getSupabaseAdmin>> }> {
-  const supabase = await getSupabaseAdmin();
+): Promise<{ rows: Record<string, string>[]; supabase: Awaited<ReturnType<typeof getDbClient>> }> {
+  const supabase = await getDbClient();
   if (!supabase) {
     throw new Error('Storage not configured');
   }
 
-  const { data: fileBlob, error: downloadError } = await supabase.storage
+  const { data: fileBlob, error: downloadError } = await (await getSupabaseStorage())
     .from(STORAGE_BUCKET)
     .download(batchPath);
 
@@ -253,7 +254,7 @@ async function loadBatchFromStorage(
   const rows = JSON.parse(text) as Record<string, string>[];
 
   try {
-    await supabase.storage.from(STORAGE_BUCKET).remove([batchPath]);
+    await (await getSupabaseStorage()).from(STORAGE_BUCKET).remove([batchPath]);
   } catch { /* best-effort cleanup */ }
 
   return { rows, supabase };
@@ -324,7 +325,7 @@ export async function POST(request: NextRequest) {
 
     // Resolve rows: body → batch file in storage
     let rowsToProcess: Record<string, string>[];
-    let supabaseForCleanup: Awaited<ReturnType<typeof getSupabaseAdmin>> = null;
+    let supabaseForCleanup: Awaited<ReturnType<typeof getDbClient>> = null;
     let isStorageFallback = false;
 
     if (clientRows && Array.isArray(clientRows) && clientRows.length > 0) {
@@ -602,9 +603,9 @@ export async function POST(request: NextRequest) {
       // Clean up the CSV file from storage
       if (csvMeta?.storage_path) {
         try {
-          const supabase = supabaseForCleanup || await getSupabaseAdmin();
+          const supabase = supabaseForCleanup || await getDbClient();
           if (supabase) {
-            await supabase.storage.from(STORAGE_BUCKET).remove([csvMeta.storage_path]);
+            await (await getSupabaseStorage()).from(STORAGE_BUCKET).remove([csvMeta.storage_path]);
           }
         } catch { /* best-effort cleanup */ }
       }

@@ -1,4 +1,5 @@
-import { getSupabaseAdmin, getTenantIdFromHeaders } from '@/lib/supabase-server';
+import { getTenantIdFromHeaders } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { SUPABASE_QUERY_LIMIT } from '@/lib/supabase-constants';
 import { getKnexClient } from '@/lib/knex-client';
 import type { CollectionItemValue, CollectionFieldType } from '@/types';
@@ -25,7 +26,7 @@ import { deleteTranslationsInBulk, markTranslationsIncomplete } from '@/lib/repo
  * Skips rows whose hash already matches so a no-op save leaves `updated_at` alone.
  */
 async function updateContentHash(itemId: string, isPublished: boolean, hash: string): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) throw new Error('Supabase client not configured');
 
   const { error } = await client
@@ -52,7 +53,7 @@ export interface CreateCollectionItemValueData {
 export async function insertValuesBulk(
   values: Array<{ item_id: string; field_id: string; value: string | null; is_published?: boolean }>
 ): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -141,7 +142,7 @@ export async function getValuesByItemIds(
   knownFieldTypes?: Record<string, string>,
   fieldIds?: string[],
 ): Promise<Record<string, Record<string, any>>> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -276,7 +277,7 @@ export async function getValueRowsForItems(
     return await query;
   } catch {
     // Fallback: paginated PostgREST reads (chunk item IDs to stay within URL limits)
-    const client = await getSupabaseAdmin(tenantId);
+    const client = await getDbClient(tenantId);
     if (!client) throw new Error('Supabase client not configured');
 
     const ITEM_CHUNK = 50;
@@ -317,7 +318,7 @@ export async function getValueRowsForItems(
 export async function getValueMapByFieldIds(
   fieldIds: string[]
 ): Promise<Map<string, Map<string, string>>> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -371,7 +372,7 @@ export async function getValuesByItemId(
   item_id: string,
   is_published: boolean = false
 ): Promise<CollectionItemValue[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -400,7 +401,7 @@ export async function getValuesByFieldId(
   field_id: string,
   is_published: boolean = false
 ): Promise<CollectionItemValue[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -431,7 +432,7 @@ export async function getValue(
   field_id: string,
   is_published: boolean = false
 ): Promise<CollectionItemValue | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -466,7 +467,7 @@ export async function setValue(
   value: string | null,
   is_published: boolean = false
 ): Promise<CollectionItemValue> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -555,7 +556,7 @@ export async function setValuesByFieldName(
   fieldType: Record<string, CollectionFieldType>,
   is_published: boolean = false
 ): Promise<CollectionItemValue[]> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -691,7 +692,7 @@ export async function deleteValue(
   field_id: string,
   is_published: boolean = false
 ): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -724,7 +725,7 @@ export async function clearValuesForField(
   field_id: string,
   value: string
 ): Promise<number> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -759,7 +760,7 @@ export async function renameValuesForField(
 ): Promise<number> {
   if (old_value === new_value) return 0;
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -791,7 +792,7 @@ export async function renameValuesForField(
  * @returns Number of values published
  */
 export async function publishValues(item_id: string): Promise<number> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');

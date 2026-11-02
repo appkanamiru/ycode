@@ -20,7 +20,7 @@ import { getAllDraftLayers, getDraftLayers, getEmbeddedComponentIdsForCollection
 import { getAllComponents } from '@/lib/repositories/componentRepository';
 import { collectComponentIds } from '@/lib/component-utils';
 import { setSetting } from '@/lib/repositories/settingsRepository';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 
 /**
  * Extract all Tailwind classes from a layer tree.
@@ -225,7 +225,7 @@ async function getPageSettingsByIds(pageIds: string[]): Promise<Map<string, unkn
   const map = new Map<string, unknown>();
   if (pageIds.length === 0) return map;
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) return map;
 
   const { chunk } = await import('@/lib/utils');
@@ -344,7 +344,7 @@ async function updatePageGeneratedCss(
   css: string,
 ): Promise<void> {
   const { generatePageLayersHash } = await import('@/lib/hash-utils');
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) return;
 
   const contentHash = generatePageLayersHash({

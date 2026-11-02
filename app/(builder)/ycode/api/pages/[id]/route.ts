@@ -9,6 +9,7 @@ import {
 import { deleteTranslationsInBulk } from '@/lib/repositories/translationRepository';
 import { getRoutePathsForPages, invalidatePages } from '@/lib/services/cacheService';
 import { noCache } from '@/lib/api-response';
+import { reportPageEvent } from '@/lib/services/siteEvents';
 
 // Disable caching for this route
 export const dynamic = 'force-dynamic';
@@ -115,6 +116,7 @@ export async function PUT(
 
     // Pass all updates to the repository (it will handle further validation)
     const page = await updatePage(id, body);
+    void reportPageEvent('updated', page);
 
     // When a page becomes a draft, remove its live version and purge its cache.
     // Routes are resolved before deletion so the stale URLs can be invalidated.
@@ -165,8 +167,11 @@ export async function DELETE(
   try {
     const { id } = await params;
 
+    const deleted = await getPageById(id).catch(() => null);
+
     // Delete the page
     await deletePage(id);
+    if (deleted) void reportPageEvent('deleted', deleted);
 
     // Delete all translations for this page
     await deleteTranslationsInBulk('page', id);

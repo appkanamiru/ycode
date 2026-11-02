@@ -9,6 +9,7 @@ import { createPageFolder, getAllPageFolders } from '@/lib/repositories/pageFold
 import { createPage, getAllPages, getPagesByFolder } from '@/lib/repositories/pageRepository';
 import { upsertDraftLayers } from '@/lib/repositories/pageLayersRepository';
 import type { CollectionField, Page, PageFolder, PageSettings } from '@/types';
+import { reportPageEvent } from '@/lib/services/siteEvents';
 
 const slugify = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
@@ -20,6 +21,7 @@ async function createEmptyPage(data: Parameters<typeof createPage>[0]): Promise<
   await upsertDraftLayers(page.id, EMPTY_BODY, undefined, null);
   broadcastPageCreated(page).catch(() => {});
   broadcastLayersChanged(page.id, EMPTY_BODY).catch(() => {});
+  void reportPageEvent('created', page);
   return page;
 }
 

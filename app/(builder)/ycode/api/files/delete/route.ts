@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteAsset } from '@/lib/repositories/assetRepository';
+import { deleteAsset, getAssetById } from '@/lib/repositories/assetRepository';
+import { reportAssetEvent } from '@/lib/services/siteEvents';
 
 /**
  * DELETE /ycode/api/files/delete
@@ -18,7 +19,9 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    const deleted = await getAssetById(assetId).catch(() => null);
     await deleteAsset(assetId);
+    if (deleted) void reportAssetEvent('deleted', deleted);
 
     return NextResponse.json(
       { message: 'Asset deleted successfully' },

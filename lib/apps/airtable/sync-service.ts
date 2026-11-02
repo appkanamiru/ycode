@@ -11,7 +11,8 @@
 
 import { randomUUID } from 'crypto';
 
-import { getSupabaseAdmin, runWithTenantId } from '@/lib/supabase-server';
+import { runWithTenantId } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { getAppSettingValue, setAppSetting } from '@/lib/repositories/appSettingsRepository';
 import { generateUniqueSlug as generateUniqueSlugFromSet } from '@/lib/collection-utils';
 import { isAssetFieldType, isMultipleAssetField, getAssetCategoryForField } from '@/lib/collection-field-utils';
@@ -355,7 +356,7 @@ export async function processWebhookNotification(
 
   const doSync = async (): Promise<SyncResult[]> => {
     // Lock must be inside doSync so it runs within the tenant context
-    // (runWithTenantId) — otherwise getSupabaseAdmin() has no tenant scope.
+    // (runWithTenantId) — otherwise getDbClient() has no tenant scope.
     const lockStatus = await tryClaimSyncLock(webhookId);
 
     if (lockStatus === 'busy') return [];
@@ -740,7 +741,7 @@ async function getExistingAirtableRecordIds(
 ): Promise<Set<string>> {
   if (airtableRecordIds.length === 0) return new Set();
 
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) return new Set();
 
   const { data } = await client
@@ -1081,7 +1082,7 @@ async function batchUpsertValues(
 
 /** Soft-delete multiple items in a single query */
 async function batchSoftDelete(itemIds: string[]): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) throw new Error('Supabase not configured');
 
   const now = new Date().toISOString();

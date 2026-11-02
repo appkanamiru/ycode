@@ -351,7 +351,8 @@ const CLASS_PROPERTY_MAP: Record<string, RegExp> = {
   borderBottomWidth: /^border-b(-\d+|-\[(?!#|rgb|color:var|var\().+\])?$/,
   borderLeftWidth: /^border-l(-\d+|-\[(?!#|rgb|color:var|var\().+\])?$/,
   borderStyle: /^border-(solid|dashed|dotted|double|hidden|none)$/,
-  borderColor: /^border-(?!(?:solid|dashed|dotted|double|hidden|none|collapse|separate)$)(?!t-|r-|b-|l-|x-|y-|spacing)((\w+)(-\d+)?|\[(?:#|rgb|color:var|var\().+\])(\/\d+)?$/,
+  // Side widths (border-b, border-t-2, ...) are not colors
+  borderColor: /^border-(?!(?:solid|dashed|dotted|double|hidden|none|collapse|separate)$)(?!(?:t|r|b|l|x|y)(?:-|$)|spacing)((\w+)(-\d+)?|\[(?:#|rgb|color:var|var\().+\])(\/\d+)?$/,
   borderRadius: /^rounded(-none|-sm|-md|-lg|-xl|-2xl|-3xl|-full|-\[.+\])?$/,
   borderTopLeftRadius: /^rounded-tl(-none|-sm|-md|-lg|-xl|-2xl|-3xl|-full|-\[.+\])?$/,
   borderTopRightRadius: /^rounded-tr(-none|-sm|-md|-lg|-xl|-2xl|-3xl|-full|-\[.+\])?$/,
@@ -362,7 +363,7 @@ const CLASS_PROPERTY_MAP: Record<string, RegExp> = {
   divideX: /^divide-x(-\d+|-\[(?!#|rgb|color:var|var\().+\])?$/,
   divideY: /^divide-y(-\d+|-\[(?!#|rgb|color:var|var\().+\])?$/,
   divideStyle: /^divide-(solid|dashed|dotted|double|none)$/,
-  divideColor: /^divide-((\w+)(-\d+)?|\[(?:#|rgb|color:var|var\().+\])(\/\d+)?$/,
+  divideColor: /^divide-(?!(?:x|y)(?:-|$)|(?:solid|dashed|dotted|double|none)$)((\w+)(-\d+)?|\[(?:#|rgb|color:var|var\().+\])(\/\d+)?$/,
 
   // Outline
   outlineWidth: /^outline(-\d+|-\[(?!#|rgb|color:var|var\().+\])?$/,

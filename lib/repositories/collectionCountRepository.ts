@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { getFieldsByCollectionId, getFieldById } from '@/lib/repositories/collectionFieldRepository';
 import { parseMultiReferenceValue } from '@/lib/collection-utils';
 import type { CollectionField, CollectionItemWithValues } from '@/types';
@@ -65,7 +65,7 @@ async function buildCountMap(
   sourceField: CollectionField,
 ): Promise<Map<string, number>> {
   const counts = new Map<string, number>();
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
   if (!client) return counts;
 
   // Query the draft side: every item has a draft row (the source of truth in

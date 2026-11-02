@@ -78,7 +78,8 @@ function splitClasses(classes: string | string[] | undefined): string[] {
 /**
  * Read font family and weight from a layer's compiled classes.
  *
- * Recognises `font-[Plus_Jakarta_Sans]` (family, underscores → spaces),
+ * Recognises `font-[Plus_Jakarta_Sans]` and `font-['Plus_Jakarta_Sans']`
+ * (family, underscores → spaces),
  * `font-sans|serif|mono` (built-in family), `font-[700]` (numeric weight) and
  * the named weights (`font-bold`). Only desktop (unprefixed) classes count.
  * Later classes win, matching how the builder de-duplicates conflicting
@@ -98,7 +99,8 @@ export function getTextFontFromClasses(classes: string | string[] | undefined): 
         const n = parseInt(inner, 10);
         if (!isNaN(n)) weight = n;
       } else if (inner) {
-        family = inner.replace(/_/g, ' ');
+        // `font-['IBM_Plex_Mono']` (quoted, as HTML import writes it) names the same family
+        family = inner.replace(/^(['"])(.*)\1$/, '$2').replace(/_/g, ' ');
       }
       continue;
     }

@@ -1,4 +1,5 @@
-import { getSupabaseAdmin, getTenantIdFromHeaders } from '@/lib/supabase-server';
+import { getTenantIdFromHeaders } from '@/lib/supabase-server';
+import { getDbClient } from '@/lib/database/pg-client';
 import { SUPABASE_QUERY_LIMIT } from '@/lib/supabase-constants';
 import { getKnexClient } from '@/lib/knex-client';
 import type { CollectionField, CreateCollectionFieldData, UpdateCollectionFieldData } from '@/types';
@@ -45,7 +46,7 @@ export async function getAllFields(
     // Fallback to paginated PostgREST reads below.
   }
 
-  const client = await getSupabaseAdmin(tenantId);
+  const client = await getDbClient(tenantId);
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -95,7 +96,7 @@ export async function getFieldsByCollectionId(
   filters?: FieldFilters,
   tenantId?: string
 ): Promise<CollectionField[]> {
-  const client = await getSupabaseAdmin(tenantId);
+  const client = await getDbClient(tenantId);
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -135,7 +136,7 @@ export async function getFieldsByKeyAcrossCollections(
   key: string,
   collectionIds: string[]
 ): Promise<Map<string, CollectionField>> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -169,7 +170,7 @@ export async function getFieldsByKeyAcrossCollections(
  * @param isPublished - Get draft (false) or published (true) version. Defaults to false (draft).
  */
 export async function getFieldById(id: string, isPublished: boolean = false): Promise<CollectionField | null> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -194,7 +195,7 @@ export async function getFieldById(id: string, isPublished: boolean = false): Pr
  * Create a new field
  */
 export async function createField(fieldData: CreateCollectionFieldData): Promise<CollectionField> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -238,7 +239,7 @@ export async function updateField(
   fieldData: UpdateCollectionFieldData,
   isPublished: boolean = false
 ): Promise<CollectionField> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -271,7 +272,7 @@ export async function updateField(
  * @param isPublished - Which version to delete: draft (false) or published (true). Defaults to false (draft).
  */
 export async function deleteField(id: string, isPublished: boolean = false): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -321,7 +322,7 @@ export async function reorderFields(
   is_published: boolean = false,
   field_ids: string[]
 ): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -358,7 +359,7 @@ export async function reorderFields(
  * @param isPublished - Which version to delete: draft (false) or published (true). Defaults to false (draft).
  */
 export async function hardDeleteField(id: string, isPublished: boolean = false): Promise<void> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');
@@ -383,7 +384,7 @@ export async function hardDeleteField(id: string, isPublished: boolean = false):
  * @param id - Field UUID
  */
 export async function publishField(id: string): Promise<CollectionField> {
-  const client = await getSupabaseAdmin();
+  const client = await getDbClient();
 
   if (!client) {
     throw new Error('Supabase client not configured');

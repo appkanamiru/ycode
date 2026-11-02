@@ -97,6 +97,8 @@ TIP: Use search_google_fonts first to discover available fonts. If you provide j
         category: resolvedCategory,
         weights: resolvedWeights,
         variants: resolvedVariants,
+        // Variable axes (wght, wdth, opsz, ...) so the stylesheet loads them, as the editor does
+        ...(entry?.axes?.length && !weights ? { axes: entry.axes } : {}),
       });
       broadcastFontsChanged().catch(() => {});
       return {
