@@ -392,7 +392,7 @@ export default function GeneralSettingsPage() {
                       Favicon
                     </FieldLabel>
                     <FieldDescription>
-                      32 x 32 pixels minimum. ICO, PNG, GIF, SVG, or JPG.
+                      A square of 48 x 48 pixels or more (Google shows nothing smaller); SVG, or PNG of 192 x 192.
                     </FieldDescription>
                     <div className="flex gap-2">
                       <Button
@@ -428,7 +428,7 @@ export default function GeneralSettingsPage() {
                       />
                     ) : (
                       <Image
-                        src={'/ycode-webclip.png'}
+                        src={'/apple-icon.png'}
                         alt="Web clip preview"
                         width={64}
                         height={64}

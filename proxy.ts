@@ -1,3 +1,5 @@
+import { readdirSync } from 'fs';
+import { join } from 'path';
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
@@ -48,6 +50,30 @@ const SITE_SEO_FILES = ['/robots.txt', '/sitemap.xml', '/llms.txt', '/favicon.ic
  * or builder routes)
  */
 const PUBLIC_FILE = /^\/(?:(?!favicon\.ico$)[\w\-.]+|ycode\/(?!api\/|storage\/)[\w\-/]+)\.(webp|png|jpe?g|gif|svg|avif|ico|woff2?|css)$/i;
+
+/** Icons generated from app/ (metadata routes) rather than stored in public/ */
+const ROOT_METADATA_FILES = ['icon.svg', 'apple-icon.png'];
+
+let rootStaticFiles: Set<string> | null = null;
+
+/**
+ * Whether a root-level file path names no file in public/ nor an app icon.
+ * On the platform such a request would reach the static page route, which
+ * cannot render a site there (500): it is answered with a 404 instead.
+ * Null when public/ cannot be listed (then the request goes on as before).
+ */
+function isMissingRootFile(pathname: string): boolean | null {
+  const name = pathname.slice(1);
+  if (name.includes('/')) return false;
+  if (!rootStaticFiles) {
+    try {
+      rootStaticFiles = new Set([...readdirSync(join(process.cwd(), 'public')), ...ROOT_METADATA_FILES]);
+    } catch {
+      return null;
+    }
+  }
+  return !rootStaticFiles.has(name);
+}
 
 const PUBLIC_API_EXACT = [
   '/ycode/api/revalidate', // Cache revalidation — has own secret token auth
@@ -240,6 +266,9 @@ export async function proxy(request: NextRequest) {
   // any host, without a session or tenant. Next's image optimizer also
   // requests them internally.
   const isPublicFile = PUBLIC_FILE.test(pathname);
+  if (isPublicFile && isMultiTenant() && isMissingRootFile(pathname)) {
+    return new NextResponse('Not found', { status: 404 });
+  }
 
   // Plain Postgres: platform sessions instead of Supabase Auth, plus tenant resolution
   let tenantId: string | null = null;
